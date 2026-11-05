@@ -1,0 +1,23 @@
+{
+ "version": "2026.11.05",
+ "notes": "第一版Github",
+ "published": "2026-11-05 11:32",
+ "files": {
+  "rom_daily.py": {
+   "sha256": "5fe286f09c2866ab11a01fa272e06315d6ab0c208d8281135546615e20e63726",
+   "size": 145120
+  },
+  "rom_party.py": {
+   "sha256": "be139af85b01b14d2ab6d721c077e982275c16b497e9bbf52e4d456363f20779",
+   "size": 16111
+  },
+  "gui.pyw": {
+   "sha256": "110b94f53b0ea7ec1dd2e2cd536a725ae6f3fb3fe6afa2966dbb71b35a1e6c05",
+   "size": 112051
+  },
+  "account_switch.pyw": {
+   "sha256": "a0a6dd424fceb3ec1a9d9d11eadf403fa79e94bd0fec71a65b087c81fcd0e959",
+   "size": 16754
+  }
+ }
+}
