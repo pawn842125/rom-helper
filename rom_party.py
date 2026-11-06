@@ -44,7 +44,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.05n"
+__version__ = "2026.11.06l"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -65,6 +65,8 @@ P_FRIEND_BTN = None              # 「更多」展開後的「好友」按鈕；
 # 燃料輪替（鐵匠每天 2000 燃料，三隻角色輪流進打手的隊伍吸）
 FUEL_MAX = 5                     # 同時最多幾隻在吸（隊伍 6 人含打手）
 FUEL_GAP = 20.0                  # 同一個視窗至少隔幾秒才再看一次
+FUEL_ACTION_GAP = 2.0            # 燃料輪替：每點一下、每按一個鍵之後至少停幾秒（使用者要求：動作太快，每個都等 2 秒）
+FUEL_FIRST_WAIT = 60.0           # 進隊跟隨後，等幾秒才第一次開對話框看（使用者要求：先讓它打一陣子）
 BAG_KEY = "b"                    # 包包（官方）
 P_CHAR_SLOTS = [None, None, None]  # 選角畫面左邊 3 個頭像（第 1 個是本尊）
 P_CHAT_OPEN = None               # 主畫面左下角的對話框
@@ -182,6 +184,52 @@ def leave_party():
     return st == "out"
 
 
+def _fav_selected(screen=None):
+    """好友面板現在是不是在 ❤ 分頁（fav_tab_on.png = 愛心＋底下藍色底線）。
+    門檻拉到 0.9、而且要在 ❤ 分頁位置附近：沒選中的愛心只差一條底線，0.8 會被當成選中。"""
+    screen = grab() if screen is None else screen
+    for b in rd.find_all(screen, "fav_tab_on.png", threshold=0.9):
+        cx, cy = b[0] + b[2] // 2, b[1] + b[3] // 2
+        if not P_FAV_TAB or (abs(cx - P_FAV_TAB[0]) < 60 and abs(cy - P_FAV_TAB[1]) < 60):
+            return True
+    return False
+
+
+def open_fav_tab():
+    """點 ❤ 分頁，並確認真的切過去了（使用者實測：滑鼠指到愛心但沒切過去，
+    剛好打手在 All 也排第一才沒出事）。最多點 3 次，切不過去就回傳 False（不申請）。
+    還沒抓 fav_tab_on.png 的話照舊只點一下（組隊輪替的朋友不會突然不能用）。"""
+    if not has("fav_tab_on.png"):
+        rd.step("（還沒抓「❤ 分頁被選中」的圖，沒辦法確認有沒有切到 ❤；到校正頁「組隊輪替」抓）")
+        click_at(P_FAV_TAB[0], P_FAV_TAB[1])
+        return True
+    for n in range(1, 4):
+        click_at(P_FAV_TAB[0], P_FAV_TAB[1])
+        deadline = time.time() + 3.0 * max(0.5, rd.SLOW)
+        while time.time() < deadline:
+            if _fav_selected():
+                if n > 1:
+                    rd.step(f"點了 {n} 次才切到 ❤ 分頁")
+                return True
+            time.sleep(0.4)
+        if n < 3:
+            rd.step(f"點了 ❤ 但沒切過去，再點一次（第 {n + 1} 次）")
+    rd.step(f"點了 3 次還是切不到 ❤ 分頁，這次不申請（{dump_fail('friend_fav')}）")
+    return False
+
+
+def close_friend_panel():
+    """點好友面板右上角的 ✕ 關掉（它跟其他面板的關閉鈕長得不一樣，一般的回主畫面關不掉）。
+    最多點 3 次，看不到 ✕ 就是關掉了；最後再回主畫面收尾（申請後的小視窗之類）。"""
+    if has("friend_close.png"):
+        for _ in range(3):
+            b = find_one(grab(), "friend_close.png")
+            if not b:
+                break
+            click_box(b, wait=rd.T_PANEL_MAX)
+    back_to_main()
+
+
 def apply_party():
     """按 O → ❤ 分頁 → 第一個好友 → 旗子。回傳申請後有沒有真的進隊。"""
     if not on_main():
@@ -207,11 +255,13 @@ def apply_party():
     if not (P_FAV_TAB and P_FRIEND_FIRST and P_APPLY_FLAG):
         back_to_main()
         return False
-    click_at(P_FAV_TAB[0], P_FAV_TAB[1])
+    if not open_fav_tab():
+        close_friend_panel()
+        return False
     click_at(P_FRIEND_FIRST[0], P_FRIEND_FIRST[1])
     click_at(P_APPLY_FLAG[0], P_APPLY_FLAG[1])
     wait_stable(2.0)
-    back_to_main()
+    close_friend_panel()
     # 自由隊伍是直接進的，馬上按 T 看有沒有成功
     st = party_status()
     back_to_main()
@@ -224,7 +274,7 @@ def apply_party():
 
 def visit(idx, hwnd, state, slots_free):
     """處理一隻小號。回傳 (新狀態, 訊息, 這次有沒有佔用一個空位)。"""
-    orig = rd.get_rect(hwnd)
+    orig = rd.remember_place(hwnd)
     try:
         rd.normalize_window(hwnd)
         if on_main():
@@ -272,7 +322,7 @@ def visit(idx, hwnd, state, slots_free):
         return STATE_ERR, f"發生錯誤：{e}", False
     finally:
         try:
-            rd.move_window(hwnd, *orig)
+            rd.restore_place(hwnd, orig)
         except Exception:
             pass
 
@@ -425,7 +475,7 @@ def _run_loop(alts, states, max_alts, once):
 F_WAIT, F_IN, F_DONE, F_ERR = "等空位", "吸燃料中", "完成", "異常"
 FUEL_TEMPLATES = ["settings_game.png", "back_login.png", "title_start.png", "charsel_start.png", "leader_star.png",
                   "follow_off.png", "follow_on.png", "chat_sys_tab.png", "chat_fuel.png", "chat_close.png",
-                  "fuel_item.png", "fuel_full.png",
+                  "fuel_item.png", "fuel_full.png", "fav_tab_on.png", "friend_close.png",
                   "leave_party.png", "create_party.png", "count_full.png"]
 
 
@@ -448,6 +498,37 @@ def _same(a, b, tol=3.0):
     return float(np.mean(d)) < tol
 
 
+def press_until_moved(tmpl, label, moved, timeout=60.0, first_wait=1.5, gap=3.0):
+    """點 tmpl 那顆按鈕，直到畫面換掉（moved(畫面) 為真）。
+
+    使用者實測：標題畫面一出現「開始遊戲」就點，常常沒反應（遊戲還要 1～2 秒才準備好），
+    以前只點一下就乾等 60 秒 → 卡住。現在：先等 first_wait 秒再點；之後每 gap 秒看一次，
+    畫面換了就成功；還看得到同一顆按鈕 = 剛剛沒反應，再點一次。只有真的沒反應才補點，
+    不會多點到下一個畫面去。回傳 True 畫面換了 / False 超過 timeout。
+    """
+    rd.nap(first_wait)
+    box = find_one(grab(), tmpl)
+    if box:
+        click_box(box, wait=0.5)
+    n, last = 1, time.time()
+    deadline = time.time() + timeout * max(0.5, rd.SLOW)
+    while time.time() < deadline:
+        screen = grab()
+        if moved(screen):
+            if n > 1:
+                rd.step(f"{label}點了 {n} 次才有反應")
+            return True
+        if time.time() - last >= gap:
+            box = find_one(screen, tmpl)
+            if box:
+                n += 1
+                rd.step(f"{label}沒反應，再點第 {n} 次")
+                click_box(box, wait=0.5)
+                last = time.time()
+        time.sleep(0.4)
+    return False
+
+
 def switch_character(slot):
     """設置 →「回到登錄」→ 標題「開始遊戲」→ 選第 slot 隻 →「開始遊戲」→ 等回到主畫面。
     回傳 True 成功 / "empty" 這格沒有角色（「＋」）/ False 失敗。"""
@@ -468,8 +549,9 @@ def switch_character(slot):
     if not t:
         rd.step("等不到標題畫面的「開始遊戲」")
         return False
-    click_box(t, wait=rd.T_PANEL_MAX)
-    if not wait_for("charsel_start.png", timeout=60.0):
+    rd.step("看到標題畫面，等一下再按「開始遊戲」")
+    if not press_until_moved("title_start.png", "標題畫面的「開始遊戲」",
+                             lambda sc: find_one(sc, "charsel_start.png") is not None):
         rd.step("等不到選角畫面")
         return False
     pt = P_CHAR_SLOTS[slot - 1]
@@ -485,7 +567,12 @@ def switch_character(slot):
     st = wait_for("charsel_start.png", timeout=5.0)
     if not st:
         return False
-    click_box(st)
+    # 選角畫面的「開始遊戲」一樣可能點太快沒反應：離開選角畫面（看不到這顆按鈕）就算按到了
+    if not press_until_moved("charsel_start.png", "選角畫面的「開始遊戲」",
+                             lambda sc: find_one(sc, "charsel_start.png") is None,
+                             timeout=30.0, first_wait=1.0):
+        rd.step("選角畫面按「開始遊戲」一直沒反應")
+        return False
     rd.step("按了「開始遊戲」，等進到遊戲")
     if not wait_until(lambda sc: on_main(sc), 90.0):
         back_to_main()                               # 進遊戲常會跳公告、簽到，關掉
@@ -497,51 +584,71 @@ def switch_character(slot):
     return True
 
 
-def follow_leader():
-    """隊伍面板 → 點隊長（紅色星星）→ 看腳印：有斜線就是已跟隨不要按；沒斜線才按。回傳有沒有在跟隨。"""
+def _foot(screen=None):
+    """看腳印是「已跟隨」（有斜線）還是「沒跟隨」。回傳 ("on"/"off"/None, 框)。
+
+    兩張模板只差一條細斜線，以前看到 follow_on 就算數 → 沒跟隨也常被當成已跟隨（使用者實測）。
+    現在兩張都比，哪張分數高算哪張；一樣高算「沒跟隨」（多按一下會被後面的確認抓到再按回來）。"""
+    screen = grab() if screen is None else screen
+    on = find_one(screen, "follow_on.png")
+    off = find_one(screen, "follow_off.png")
+    if on and off:
+        return ("on", on) if on[4] > off[4] else ("off", off)
+    if on:
+        return "on", on
+    if off:
+        return "off", off
+    return None, None
+
+
+def _open_leader_foot():
+    """隊伍面板 → 點隊長（紅色星星）→ 等 2 秒讓腳印出現穩定 → 看腳印。
+    回傳 ("on"/"off"/None, 框)，或 "out"（不在隊裡）、"nostar"（找不到隊長）。面板留著開。"""
     st = party_status()
     if st != "in":
         back_to_main()
-        return False
+        return "out"
     star = wait_for("leader_star.png", timeout=3.0)
     if not star:
         rd.step("隊伍面板裡找不到隊長的紅色星星")
         back_to_main()
-        return False
+        return "nostar"
     click_box(star, wait=rd.T_PANEL_MAX)
-
-    def foot():
-        sc = grab()
-        if find_one(sc, "follow_on.png"):
-            return "on"
-        b = find_one(sc, "follow_off.png")
-        return b or None
-
-    state = None
+    rd.nap(2.0)                                       # 使用者要求：點了隊長等 2 秒再看、再按
     for _ in range(int(6 * max(1.0, rd.SLOW))):
-        state = foot()
+        state, box = _foot()
         if state:
-            break
+            return state, box
         time.sleep(0.5)
-    if state == "on":
-        rd.step("已經在跟隨隊長了（腳印有斜線，不按）")
+    return None, None
+
+
+def follow_leader():
+    """隊伍面板 → 點隊長 → 看腳印：已跟隨就不按；沒跟隨就按，再打開確認，還沒跟隨最多再按 2 次。
+    回傳有沒有在跟隨。"""
+    for attempt in range(3):                          # 第 1 次 ＋ 最多再按 2 次
+        r = _open_leader_foot()
+        if r in ("out", "nostar"):
+            return False
+        state, box = r
+        if state == "on":
+            rd.step("已經在跟隨隊長了（腳印有斜線，不按）" if attempt == 0
+                    else f"跟隨成功（按了 {attempt} 次腳印）")
+            back_to_main()
+            return True
+        if not state:
+            rd.step("點了隊長，但沒看到腳印")
+            back_to_main()
+            return False
+        if attempt:
+            rd.step(f"還沒在跟隨，再按一次腳印（第 {attempt + 1} 次）")
+        click_box(box, wait=rd.T_PANEL_MAX)           # 沒斜線的腳印 → 按下去開始跟隨
+        rd.step("按了腳印，重新打開確認有沒有變成「已跟隨」")
         back_to_main()
-        return True
-    if not state:
-        rd.step("點了隊長，但沒看到腳印")
-        back_to_main()
-        return False
-    click_box(state, wait=rd.T_PANEL_MAX)             # 沒斜線的腳印 → 按下去開始跟隨
-    rd.step("按了腳印，確認有沒有變成「已跟隨」")
+    r = _open_leader_foot()                           # 按了 3 次，最後再確認一次
+    ok = isinstance(r, tuple) and r[0] == "on"
     back_to_main()
-    party_status()                                    # 重新打開看一次
-    star = wait_for("leader_star.png", timeout=3.0)
-    ok = False
-    if star:
-        click_box(star, wait=rd.T_PANEL_MAX)
-        ok = wait_for("follow_on.png", timeout=4.0) is not None
-    back_to_main()
-    rd.step("跟隨成功" if ok else "按了腳印但看不到「已跟隨」")
+    rd.step("跟隨成功（按了 3 次腳印）" if ok else "按了 3 次腳印還是看不到「已跟隨」")
     return ok
 
 
@@ -595,20 +702,24 @@ def bag_fuel_full():
 class FuelAccount:
     """一個帳號（視窗）：依序換角色、入隊、跟隨、看燃料。"""
 
-    def __init__(self, hwnd):
+    def __init__(self, hwnd, slots=(2, 3, 1)):
         self.hwnd = hwnd
         self.label = rd.window_label(hwnd)
         done = rd.done_today(_fuel_key(hwnd))
-        self.queue = [n for n in (2, 3, 1) if f"slot{n}" not in done]   # 先兩隻小號，最後本尊
+        slots = set(slots or (2, 3, 1))                  # 這個帳號要吸的角色（GUI 選擇視窗勾的）
+        self.queue = [n for n in (2, 3, 1) if n in slots and f"slot{n}" not in done]   # 先小號，最後本尊
+        self.back_to_main = 1 not in slots               # 沒勾本尊：全部吸完換回本尊
         self.state = F_DONE if not self.queue else F_WAIT
         self.slot = None              # 目前在吸的是第幾隻
         self.current = None           # 遊戲裡現在登入的是第幾隻（換過才知道）
         self.errors = 0
+        self.extra = ""               # 收尾的結果（換回本尊）
         self.page = None              # 上次看到的對話框
         self.stuck = 0
         self.fixes = 0
         self.last = 0.0
         self.note = "今天已經全部完成（紀錄）" if not self.queue else ""
+        self.picked = "、".join({2: "第2隻", 3: "第3隻", 1: "本尊"}[n] for n in (2, 3, 1) if n in slots)
 
     @property
     def next_is_main(self):
@@ -620,12 +731,27 @@ class FuelAccount:
         self.queue.pop(0)
         self.slot, self.page, self.stuck, self.fixes = None, None, 0, 0
         self.state = F_DONE if not self.queue else F_WAIT
+        if not self.queue:
+            self.note = "全部完成"
+            self.wrap_up()
+
+    def wrap_up(self):
+        """這個帳號要吸的都吸完了。沒勾本尊的話換回本尊（隔天跑每日任務登入的才是本尊）。"""
+        if not self.back_to_main or self.current in (None, 1):
+            return                                    # 本尊本來就在輪替裡，或這次根本沒換過角色
+        rd.step("要吸的角色都完成了，換回本尊")
+        if switch_character(1) is True:
+            self.current = 1
+            self.extra = "，已換回本尊"
+        else:
+            self.extra = f"，⚠ 換回本尊失敗，請手動換（{dump_fail(f'fuel_{self.label}_back')}）"
 
     def start_next(self):
         """有空位了：換到下一隻 → 確認還沒滿 → 入隊 → 跟隨。回傳有沒有佔到一個位置。"""
         while self.queue:
             slot = self.queue[0]
             self.slot = slot
+            switched = False
             if self.current != slot:                  # 已經是這隻（上次入隊沒成功）就不用再換一次
                 r = switch_character(slot)
                 if r == "empty":
@@ -642,26 +768,28 @@ class FuelAccount:
                         self.state, self.note = F_ERR, f"換不到第 {slot} 隻，2 分鐘後再試（{shot}）"
                     return False
                 self.current = slot
-            # 已經滿了就不用佔位置
-            if slot == 1:
-                if count_is_full():
-                    self.finish_slot("（本尊）戰鬥次數已經 10000，不用吸")
-                    continue
-            elif bag_fuel_full():
-                self.finish_slot("燃料已經 2000，不用吸")
-                continue
-            st = party_status()
-            back_to_main()
+                switched = True
+            # 使用者要求：換好角色馬上入隊、跟隨，不要先開包包看（他會先把隊伍位置空出來）。
+            # 已經滿了的角色，1 分鐘後第一次巡邏會發現（對話框沒有「獲得燃料」→ 開包包看 2000；本尊看戰鬥次數）再離隊。
+            # 剛換好角色一定不在隊伍裡 → 直接去好友申請（使用者要求，不要先開隊伍面板又關掉）。
+            # 只有「沒換角色、重試申請」時才先看一下，可能上次其實已經進去了。
+            st = "out"
+            if not switched:
+                st = party_status()
+                back_to_main()
             if st != "in" and not apply_party():
                 self.last = time.time() + 60          # 隊伍可能剛好滿了：1 分鐘後再申請（不用再換角色）
                 self.state, self.note = F_WAIT, "申請入隊沒進去（可能隊伍剛好滿了），1 分鐘後再試"
                 return False
             followed = follow_leader()
             self.state, self.page, self.stuck, self.errors = F_IN, None, 0, 0
-            self.note = (f"第 {slot} 隻{'（本尊）' if slot == 1 else ''}進隊吸燃料中"
+            self.last = time.time() + FUEL_FIRST_WAIT - FUEL_GAP   # 巡邏是「上次 + FUEL_GAP」才看 → 等於 1 分鐘後才第一次看
+            self.note = (f"第 {slot} 隻{'（本尊）' if slot == 1 else ''}進隊跟隨了，"
+                         f"{FUEL_FIRST_WAIT:g} 秒後第一次看有沒有獲得燃料"
                          + ("" if followed else "（跟隨還沒成功，巡邏時會再試）"))
             return True
         self.state, self.note = F_DONE, "全部完成"
+        self.wrap_up()
         return False
 
     def check(self):
@@ -679,14 +807,17 @@ class FuelAccount:
         if page is None:
             self.note = "對話框打不開"
             return False
+        first = self.page is None                     # 進隊後第一次看
         changed = not _same(page, self.page)
         self.page = page
         if changed:
             self.stuck = 0
             if fuel or is_main:
-                self.note = "還在吸" + ("（本尊等戰鬥次數 10000）" if is_main else "")
+                self.note = ("有獲得燃料，" if first and fuel else "") + "還在吸" \
+                    + ("（本尊等戰鬥次數 10000）" if is_main else "")
                 return False
-            rd.step("對話框有新訊息但沒有燃料：可能滿了，打開包包確認")
+            rd.step("進隊後第一次看：對話框沒有「獲得燃料」，打開包包看是不是已經 2000" if first
+                    else "對話框有新訊息但沒有燃料：可能滿了，打開包包確認")
             full = bag_fuel_full()
             if full:
                 party_status()
@@ -722,11 +853,46 @@ class FuelAccount:
         return False
 
 
-def fuel_run(leader=None, accounts=None):
-    """GUI 從彈窗選好打手和要吸的帳號傳進來。"""
+class _SlowActions:
+    """燃料輪替跑的時候，每一次點擊、按鍵之後都停 FUEL_ACTION_GAP 秒。
+
+    程式所有的點擊都經過 pyautogui.click、按鍵經過 pyautogui.press／hotkey，
+    所以只要在這段時間把這三個換成「做完再停一下」的版本，結束時（包括中止、出錯）換回來，
+    每日任務、組隊輪替的速度都不受影響。"""
+
+    NAMES = ("click", "press", "hotkey")
+
+    def __init__(self, gap):
+        self.gap = gap
+        self.orig = {}
+
+    def __enter__(self):
+        if self.gap <= 0:
+            return self
+        for name in self.NAMES:
+            fn = getattr(pyautogui, name)
+            self.orig[name] = fn
+
+            def slow(*a, _fn=fn, **k):
+                r = _fn(*a, **k)
+                time.sleep(self.gap)
+                return r
+            setattr(pyautogui, name, slow)
+        return self
+
+    def __exit__(self, *exc):
+        for name, fn in self.orig.items():
+            setattr(pyautogui, name, fn)
+        self.orig = {}
+        return False
+
+
+def fuel_run(leader=None, accounts=None, slots=None):
+    """GUI 從彈窗選好打手和要吸的帳號傳進來。slots = {視窗: (要吸的角色, 例如 (2, 3))}，沒給就三隻都吸。"""
     home = rd.ACTIVE_PROFILE
     try:
-        _fuel_run(leader, accounts or [])
+        with _SlowActions(FUEL_ACTION_GAP):
+            _fuel_run(leader, accounts or [], slots or {})
     finally:
         rd.use_profile(home)
         _load()
@@ -735,7 +901,13 @@ def fuel_run(leader=None, accounts=None):
 def _fuel_ready(kind):
     missing = [f for f in FUEL_TEMPLATES if not has(f)]
     if missing:
-        print(f"【{kind}】燃料輪替缺少模板：" + "、".join(missing) + "，請到校正分頁「燃料輪替」那組抓")
+        party_group = {"fav_tab_on.png", "friend_close.png"}
+        a = [f for f in missing if f not in party_group]
+        b = [f for f in missing if f in party_group]
+        print(f"【{kind}】燃料輪替缺少模板："
+              + (("、".join(a) + "（校正頁「燃料輪替」那組）") if a else "")
+              + ("；" if a and b else "")
+              + (("、".join(b) + "（校正頁「組隊輪替」那組：❤ 分頁被選中、好友面板的 ✕）") if b else ""))
         return False
     lacks = [n for n, pt in zip((1, 2, 3), P_CHAR_SLOTS) if not pt]
     if lacks or not P_CHAT_OPEN or not P_BAG_FAV or not P_AVATAR:
@@ -747,7 +919,7 @@ def _fuel_ready(kind):
     return True
 
 
-def _fuel_run(leader, accounts):
+def _fuel_run(leader, accounts, slots=None):
     import win32gui
     if not accounts:
         print("沒有要吸燃料的帳號")
@@ -760,16 +932,18 @@ def _fuel_run(leader, accounts):
     accs = []
     for h in accounts:
         _use(h)
-        accs.append(FuelAccount(h))
+        accs.append(FuelAccount(h, (slots or {}).get(h) or (2, 3, 1)))
     print(f"打手：{rd.window_label(leader) if leader else '（不在這台電腦）'}，"
-          f"{len(accs)} 個帳號，同時最多 {FUEL_MAX} 隻在吸，每個視窗至少隔 {FUEL_GAP:g} 秒看一次")
+          f"{len(accs)} 個帳號，同時最多 {FUEL_MAX} 隻在吸，每個視窗至少隔 {FUEL_GAP:g} 秒看一次，"
+          f"每個動作後停 {FUEL_ACTION_GAP:g} 秒")
     for a in accs:
-        if a.state == F_DONE:
-            print(f"  {a.label}：{a.note}")
+        print(f"  {a.label}：吸 {a.picked or '（沒勾）'}"
+              + ("，吸完換回本尊" if a.back_to_main else "")
+              + (f"　→ {a.note}" if a.state == F_DONE else ""))
     t0 = time.time()
 
     def visit(a, what):
-        orig = rd.get_rect(a.hwnd)
+        orig = rd.remember_place(a.hwnd)
         try:
             _use(a.hwnd)
             rd.normalize_window(a.hwnd)
@@ -791,7 +965,7 @@ def _fuel_run(leader, accounts):
         finally:
             a.last = max(a.last, time.time())        # 失敗時設的「等一下再試」不要被蓋掉
             try:
-                rd.move_window(a.hwnd, *orig)
+                rd.restore_place(a.hwnd, orig)
             except Exception:
                 pass
 
@@ -803,6 +977,8 @@ def _fuel_run(leader, accounts):
             alive = [a for a in accs if a.state != F_DONE and win32gui.IsWindow(a.hwnd)]
             if not alive:
                 print(f"\n所有帳號都完成了，共 {(time.time() - t0) / 60:.0f} 分鐘。")
+                for a in accs:
+                    print(f"  {a.label}（{a.picked}）：{a.note}{a.extra}")
                 return
             busy = sum(1 for a in accs if a.state == F_IN)
             did = False
