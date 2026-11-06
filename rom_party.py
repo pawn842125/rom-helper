@@ -44,7 +44,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.06l"
+__version__ = "2026.11.06m"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -171,11 +171,27 @@ def leave_party():
     """在隊伍面板開著的狀態下點離開隊伍 → 確定。回傳有沒有成功離開。"""
     btn = find_one(grab(), "leave_party.png")
     if not btn:
+        rd.step("隊伍面板裡找不到「離開隊伍」")
         return False
     click_box(btn)
     ok = wait_for("confirm_ok.png", timeout=4.0)
-    if ok:
-        click_box(ok)
+    if not ok:
+        rd.step(f"按了「離開隊伍」但看不到綠色「確定」（confirm_ok 可能要重抓；{dump_fail('fuel_leave_confirm')}）")
+    else:
+        # 使用者實測：卡在「是否要退出當前組隊？」——對話框剛跳出來就點，遊戲沒收到。
+        # 點完確認對話框有沒有消失，還在就再點，最多 3 次（跟「開始遊戲」同一招）。
+        for n in range(1, 4):
+            click_box(ok, wait=0.5)
+            gone = wait_until(lambda sc: find_one(sc, "confirm_ok.png") is None, 2.5)
+            if gone:
+                if n > 1:
+                    rd.step(f"「確定」點了 {n} 次才離隊")
+                break
+            ok = find_one(grab(), "confirm_ok.png") or ok
+            if n < 3:
+                rd.step(f"點了「確定」對話框還在，再點一次（第 {n + 1} 次）")
+        else:
+            rd.step(f"「確定」點了 3 次對話框還在（{dump_fail('fuel_leave_stuck')}）")
     wait_stable(2.0)
     back_to_main()
     # 再按一次 T 確認真的不在隊裡了
