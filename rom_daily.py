@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.05"
+__version__ = "2026.11.05n"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -127,6 +127,8 @@ RAW_MOUSE = False                # 拖曳時用「真正的滑鼠移動訊號」
 QUICK_NO_REMIND = None           # 快速完成偶爾跳的確認視窗：「不再提示」前面的方框
 QUICK_CONFIRM_OK = None          # 同一個視窗的綠色「確定」
 ABANDON_OK = None                # 「是否要放棄懸賞任務？」視窗的綠色「確定」
+TICKET_KEY = "f2"                # 副本掃蕩券放在快捷列 F2（官方按這個鍵）
+TICKET_SLOT = None               # 快捷列 F2 那一格（雷電沒快捷鍵時點這裡）
 EXCHANGE_SLOT = None             # 快捷列上「交易所」那一格（一鍵上架用；官方雷電都放第 1 格）
 RELIST_MAX = 20                  # 一鍵上架最多按幾次（常常一次只上架一兩件，要一直按到按鈕消失）
 RED_DOT_SKIP = True              # 日常／週常分頁沒有紅點就跳過領取（紅點 = 有東西可以領）
@@ -208,7 +210,7 @@ pyautogui.PAUSE = 0.03
 _TUNABLES = ["WINDOW_TITLE", "WINDOW_EXCLUDE", "WINDOW_EXES", "HOTKEYS", "USE_ESC", "WORK_W", "WORK_H",
              "USE_RENDER_CHILD", "RENDER_CHILD_TITLE", "MATCH_THRESHOLD",
              "SAFE_CLICK", "SCROLL_POINT", "SCROLL_POINT_ALT", "LIST_TOP", "LIST_BOTTOM",
-             "DAILY_KEY", "PET_KEY", "PET_TAB", "PET_SLOT", "WAKE_CLICK", "DAILY_BTN", "EXCHANGE_SLOT", "RELIST_MAX", "RED_DOT_SKIP", "REMEMBER_DONE", "REDEEM_SKIP_DRAGS", "QUICK_NO_REMIND", "QUICK_CONFIRM_OK", "ABANDON_OK", "RAW_MOUSE", "LIST_CHECK_REGION", "LIST_MOVE_TOL", "PET_GIFT_MIN_X",
+             "DAILY_KEY", "PET_KEY", "PET_TAB", "PET_SLOT", "WAKE_CLICK", "DAILY_BTN", "TICKET_KEY", "TICKET_SLOT", "EXCHANGE_SLOT", "RELIST_MAX", "RED_DOT_SKIP", "REMEMBER_DONE", "REDEEM_SKIP_DRAGS", "QUICK_NO_REMIND", "QUICK_CONFIRM_OK", "ABANDON_OK", "RAW_MOUSE", "LIST_CHECK_REGION", "LIST_MOVE_TOL", "PET_GIFT_MIN_X",
              "DUNGEON_KEY", "DUNGEON_BTN", "DUNGEON_LIST_X", "DUNGEON_LIST_TOP",
              "DUNGEON_LIST_BOTTOM", "DUNGEON_TAB_Y", "DUNGEON_FIRST_TAB", "STRIP_DRAG_END", "MAX_SWEEPS",
              "SETTINGS_BTN", "REDEEM_INPUT_DY", "WEEKLY_TAB", "CLAIM_WEEKLY",
@@ -300,7 +302,7 @@ def _load_config():
                       ("scroll_point_alt", "SCROLL_POINT_ALT"), ("pet_tab", "PET_TAB"),
                       ("pet_slot", "PET_SLOT"), ("dungeon_btn", "DUNGEON_BTN"),
                       ("wake_click", "WAKE_CLICK"), ("daily_btn", "DAILY_BTN"),
-                      ("exchange_slot", "EXCHANGE_SLOT"),
+                      ("exchange_slot", "EXCHANGE_SLOT"), ("ticket_slot", "TICKET_SLOT"),
                       ("quick_no_remind", "QUICK_NO_REMIND"), ("quick_confirm_ok", "QUICK_CONFIRM_OK"),
                       ("abandon_ok", "ABANDON_OK"),
                       ("dungeon_first_tab", "DUNGEON_FIRST_TAB"),
@@ -536,21 +538,55 @@ def find_windows(title=None, exclude=None, exes=None):
     return hwnds
 
 
+_K32 = None
+_DWM = None
+
+
+def _kernel32():
+    """kernel32，先講清楚每個函式的參數和回傳型別。
+
+    64 位元電腦上「程式代號」（handle）是 64 位元；沒講清楚的話 ctypes 預設當成 32 位元，會被截斷，
+    下一個呼叫拿到錯的值就可能讓整個程式當掉（pythonw.exe「記憶體不能為 read」）。
+    開雷電 6 開時視窗一下多一下少、每次找視窗都會對每個視窗問一次，機率就變高。
+    用自己的 WinDLL，不改到別的套件共用的 ctypes.windll.kernel32。
+    """
+    global _K32
+    if _K32 is None:
+        import ctypes
+        from ctypes import wintypes as wt
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        k.OpenProcess.argtypes = [wt.DWORD, wt.BOOL, wt.DWORD]
+        k.OpenProcess.restype = wt.HANDLE
+        k.QueryFullProcessImageNameW.argtypes = [wt.HANDLE, wt.DWORD, wt.LPWSTR, ctypes.POINTER(wt.DWORD)]
+        k.QueryFullProcessImageNameW.restype = wt.BOOL
+        k.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
+        k.TerminateProcess.restype = wt.BOOL
+        k.CloseHandle.argtypes = [wt.HANDLE]
+        k.CloseHandle.restype = wt.BOOL
+        _K32 = k
+    return _K32
+
+
 def window_exe(hwnd):
     """這個視窗是哪個 exe 開的。用 Windows API 問，不需要額外套件。"""
     import ctypes
+    from ctypes import wintypes as wt
     import win32process
     try:
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        k32 = ctypes.windll.kernel32
+        if not pid:
+            return None
+        k32 = _kernel32()
         h = k32.OpenProcess(0x1000, False, pid)          # PROCESS_QUERY_LIMITED_INFORMATION
         if not h:
             return None
-        buf = ctypes.create_unicode_buffer(2048)
-        size = ctypes.c_ulong(2048)
-        ok = k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size))
-        k32.CloseHandle(h)
-        return buf.value if ok else None
+        try:
+            buf = ctypes.create_unicode_buffer(2048)
+            size = wt.DWORD(2048)
+            ok = k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size))
+            return buf.value if ok else None
+        finally:
+            k32.CloseHandle(h)
     except Exception:
         return None
 
@@ -738,11 +774,57 @@ def work_area():
         return 0, 0, win32api.GetSystemMetrics(0), win32api.GetSystemMetrics(1)
 
 
+def invisible_border(hwnd):
+    """Windows 10/11 每個視窗外圍有一圈看不到的邊框（左右下約 7~8 像素，拿來拖曳改大小）。
+    回傳 (左, 上, 右, 下) 各多少；排列時要扣掉，不然視窗之間會看起來有空隙。"""
+    try:
+        import ctypes
+        import ctypes.wintypes as wt
+        global _DWM
+        if _DWM is None:
+            d = ctypes.WinDLL("dwmapi")
+            d.DwmGetWindowAttribute.argtypes = [wt.HWND, wt.DWORD, ctypes.POINTER(wt.RECT), wt.DWORD]
+            d.DwmGetWindowAttribute.restype = ctypes.c_long        # HRESULT
+            _DWM = d
+        if not win32gui.IsWindow(hwnd):
+            return 0, 0, 0, 0
+        vis = wt.RECT()
+        if _DWM.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(vis), ctypes.sizeof(vis)) != 0:   # DWMWA_EXTENDED_FRAME_BOUNDS
+            return 0, 0, 0, 0
+        l, t, r, b = win32gui.GetWindowRect(hwnd)
+        return (max(0, vis.left - l), max(0, vis.top - t), max(0, r - vis.right), max(0, b - vis.bottom))
+    except Exception:
+        return 0, 0, 0, 0
+
+
+def game_frame(hwnd):
+    """視窗「看得到的外框」比遊戲畫面多出來的寬、高（標題列、邊框、雷電右邊的工具列），以及遊戲畫面的長寬比。"""
+    l, t, r, b = win32gui.GetWindowRect(hwnd)
+    il, it, ir, ib = invisible_border(hwnd)
+    ow, oh = (r - l) - il - ir, (b - t) - it - ib
+    if window_kind(hwnd) == "雷電":
+        ratio = 16 / 9
+        child = find_render_child(hwnd)
+        if child:
+            cl, ct, cr, cb = win32gui.GetWindowRect(child)
+            return max(0, ow - (cr - cl)), max(0, oh - (cb - ct)), ratio
+        return 0, 0, ratio
+    ratio = 1.6
+    try:
+        _, _, cw, ch = win32gui.GetClientRect(hwnd)
+        return max(0, ow - cw), max(0, oh - ch), ratio
+    except Exception:
+        return 0, 0, ratio
+
+
 def arrange_windows(cols=0, log=print):
     """把所有遊戲視窗排成格子，照安裝資料夾的編號（ROM Classic1、2、3…）依序填。
 
     排完之後「視窗編號 = 資料夾編號」，以後標示視窗、選視窗都不會亂。
-    cols = 0 表示自動算欄數。
+    cols = 0 表示自動挑「每個視窗最大」的欄數。
+    每個視窗都保持遊戲畫面原本的比例（官方 16:10、雷電 16:9），不會被拉成細長形；
+    全部一樣大、一個挨一個排：以「看得到的邊」對齊，看不到的邊框互相疊在一起，所以中間沒有空隙。
+    （以前是把每格塞滿，6 欄時會變得又細又長）
     """
     import math, re
     info = list_instances()
@@ -756,34 +838,59 @@ def arrange_windows(cols=0, log=print):
         m = re.search(r"(\d+)$", str(name))
         return (0, int(m.group(1))) if m else (1, str(name))
     wins = sorted(wins, key=order)
+    frames = {}
+    for _, hwnd, _ in wins:
+        try:
+            frames[hwnd] = game_frame(hwnd)
+        except Exception:
+            frames[hwnd] = (16, 39, 1.6)
 
     n = len(wins)
     left, top, right, bottom = work_area()
     sw, sh = right - left, bottom - top
-    if not cols:
-        best, cols = None, 1                       # 挑一個讓每格最接近 16:10 的欄數
-        for c in range(1, n + 1):
-            r = math.ceil(n / c)
-            score = abs((sw / c) / (sh / r) - 1.6)
-            if best is None or score < best:
-                best, cols = score, c
-    rows = math.ceil(n / cols)
-    cw, ch = sw // cols, sh // rows
-    log(f"螢幕可用 {sw}x{sh}，{n} 個視窗排成 {cols} 欄 x {rows} 列，每格 {cw}x{ch}")
 
-    for i, (_, hwnd, name) in enumerate(wins):
-        r, c = divmod(i, cols)
-        x, y = left + c * cw, top + r * ch
-        try:
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.SetWindowPos(hwnd, 0, x, y, cw, ch, 0x0004 | 0x0040)   # NOZORDER | SHOWWINDOW
-            time.sleep(0.2)
-            nx, ny, nw, nh = get_rect(hwnd)
-            ok = abs(nx - x) < 20 and abs(ny - y) < 20
-            log(f"  {i + 1:2d}. {name} → ({x}, {y}) {cw}x{ch}"
-                + ("" if ok else f"　⚠ 實際在 ({nx}, {ny}) {nw}x{nh}，視窗不接受這個位置/大小"))
-        except Exception as e:
-            log(f"  {name} 排不動：{e}")
+    def game_width(c):
+        """排成 c 欄時，每個視窗的遊戲畫面最寬可以多寬（全部視窗一樣寬，取最緊的那個）。"""
+        r = math.ceil(n / c)
+        cell_w, cell_h = sw / c, sh / r
+        return min(min(cell_w - ew, (cell_h - eh) * ratio) for ew, eh, ratio in frames.values())
+
+    if not cols:
+        cols = max(range(1, n + 1), key=game_width)    # 挑讓視窗最大的欄數
+    cols = max(1, min(int(cols), n))
+    rows = math.ceil(n / cols)
+    gw = int(game_width(cols))
+    if gw < 160:
+        log(f"⚠ 排成 {cols} 欄的話每個視窗太小（遊戲畫面只有 {gw} 寬），改用自動欄數")
+        cols = max(range(1, n + 1), key=game_width)
+        rows = math.ceil(n / cols)
+        gw = int(game_width(cols))
+    log(f"螢幕可用 {sw}x{sh}，{n} 個視窗排成 {cols} 欄 x {rows} 列，遊戲畫面每個 {gw} 寬（保持原本比例）")
+
+    y = top
+    for r in range(rows):
+        row = wins[r * cols:(r + 1) * cols]
+        x, row_h = left, 0
+        for k, (_, hwnd, name) in enumerate(row):
+            i = r * cols + k
+            ew, eh, ratio = frames[hwnd]
+            w, h = gw + ew, int(round(gw / ratio)) + eh          # 看得到的大小
+            row_h = max(row_h, h)
+            try:
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                il, it, ir, ib = invisible_border(hwnd)
+                # 實際設定時把看不到的邊框加回去，讓「看得到的邊」剛好落在 (x, y)
+                win32gui.SetWindowPos(hwnd, 0, x - il, y - it, w + il + ir, h + it + ib,
+                                      0x0004 | 0x0040)   # NOZORDER | SHOWWINDOW
+                time.sleep(0.2)
+                nx, ny, nw, nh = get_rect(hwnd)
+                ok = abs(nx + il - x) < 20 and abs(ny + it - y) < 20
+                log(f"  {i + 1:2d}. {name} → ({x}, {y}) {w}x{h}"
+                    + ("" if ok else f"　⚠ 實際在 ({nx}, {ny}) {nw}x{nh}，視窗不接受這個位置/大小"))
+            except Exception as e:
+                log(f"  {name} 排不動：{e}")
+            x += w                                 # 下一個緊接在右邊
+        y += row_h                                 # 下一列接在這列下面
     return n
 
 
@@ -807,17 +914,19 @@ def window_titles_hint(limit=8):
 
 def kill_window(hwnd):
     """強制結束這個視窗所屬的程式（等同工作管理員的「結束工作」）。回傳成功與否。"""
-    import ctypes
     import win32process
     try:
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        k32 = ctypes.windll.kernel32
+        if not pid:
+            return False
+        k32 = _kernel32()
         h = k32.OpenProcess(0x0001, False, pid)          # PROCESS_TERMINATE
         if not h:
             return False
-        ok = bool(k32.TerminateProcess(h, 1))
-        k32.CloseHandle(h)
-        return ok
+        try:
+            return bool(k32.TerminateProcess(h, 1))
+        finally:
+            k32.CloseHandle(h)
     except Exception:
         return False
 
@@ -2470,6 +2579,59 @@ def input_bar_visible(screen=None):
     return float((gray > 235).mean()) >= 0.9
 
 
+# ---------------------------------------------------------------------------
+# 副本掃蕩券（快捷列 F2，每天用一次）
+# ---------------------------------------------------------------------------
+# 同一天按第二次會「真的再用掉一張」，所以寧可漏按也不要多按：
+#   按之前先記「tried」→ 看到禮物視窗再記「used」。下次看到 tried 沒有 used 就不按，請使用者自己確認。
+#   紀錄用「種類｜名字」（不含遊戲程式編號），遊戲重開也記得；也不受「記住今天做完的任務」設定影響。
+
+def ticket_key(hwnd):
+    return f"ticket|{window_kind(hwnd)}|{window_label(hwnd)}"
+
+
+def do_ticket(idx):
+    key = ticket_key(CUR_HWND)
+    done = done_today(key)
+    if "used" in done:
+        return True, "副本掃蕩券今天已經用過了（紀錄），跳過"
+    if "tried" in done:
+        return MANUAL, ("今天按過掃蕩券但沒確認到禮物視窗，為了不多用一張，今天不會再按；"
+                        "請自己看一下，確定沒用到的話按控制台「清除今天的完成紀錄」再跑")
+    if not (has("sweep_gift.png") and has("ticket_icon.png") and TICKET_SLOT):
+        return MANUAL, "副本掃蕩券還沒校正完（校正頁「副本掃蕩券」：禮物盒、F2 上的掃蕩券圖示、F2 那一格的位置）"
+    if not on_main() and not back_to_main():
+        return False, f"不在主畫面，沒按掃蕩券（{dump_fail(f'win{idx:02d}_ticket_start')}）"
+    # 不是每隻角色都有掃蕩券：沒有的 F2 可能是空的，也可能放了別的東西（按下去會用掉那個東西！）
+    # 所以先確認 F2 那一格真的是掃蕩券才按
+    sx, sy = TICKET_SLOT
+    here = [b for b in find_all(grab(), "ticket_icon.png")
+            if abs(b[0] + b[2] // 2 - sx) < 40 and abs(b[1] + b[3] // 2 - sy) < 40]
+    if not here:
+        return True, "這隻角色沒有副本掃蕩券（F2 不是掃蕩券），跳過"
+
+    mark_done("tried", key)                        # 先記：就算按完程式剛好停掉，下次也不會再按
+    if HOTKEYS:
+        step(f"F2 是掃蕩券，按 {TICKET_KEY.upper()} 使用")
+        pyautogui.press(TICKET_KEY)
+    else:
+        step(f"F2 是掃蕩券，點那一格（{sx},{sy}）使用")
+        click_at(sx, sy)
+    gift = wait_for("sweep_gift.png", timeout=6.0)
+    if not gift:
+        shot = dump_fail(f"win{idx:02d}_ticket")
+        back_to_main()
+        return MANUAL, ("按了掃蕩券但沒看到禮物視窗（可能券用完了），為了不多用一張今天不會再按；"
+                        f"請自己看一下（{shot}）")
+    mark_done("used", key)
+    step("看到禮物視窗：掃蕩券用掉了，點一下關掉")
+    safe_click(1)
+    if not wait_until(lambda sc: find_one(sc, "sweep_gift.png") is None, 3.0):
+        safe_click(1)
+    back_to_main()
+    return True, "副本掃蕩券已使用"
+
+
 def lowest_redeem_btn():
     """畫面上最下面那個像「兌換」的按鈕（「查看」長得一樣，但在它上面）。"""
     btns = find_all(grab(), "redeem_btn.png")
@@ -2873,8 +3035,8 @@ def do_relist(idx):
     return True, f"一鍵上架按了 {rounds} 次，全部上架完成"
 
 
-ALL_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "redeem", "relist")
-MAIN_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "redeem")   # 控制台勾選的（一鍵上架在自己的分頁）
+ALL_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem", "relist")
+MAIN_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem")   # 控制台勾選的（一鍵上架在自己的分頁）
 
 # ---------------------------------------------------------------------------
 # 今天做完的紀錄（早上 6 點換日）
@@ -2952,9 +3114,42 @@ def clear_today():
     st = _state()
     st["done"] = {}
     _save_state(st)
-TASK_LABELS = {"pet": "寵物打工", "comm": "任務委託板", "dungeon": "副本掃蕩",
+TASK_LABELS = {"pet": "寵物打工", "comm": "任務委託板", "dungeon": "副本掃蕩", "ticket": "副本掃蕩券",
                "claim": "領取獎勵", "bonus": "每日福利", "redeem": "兌換序號", "relist": "一鍵上架"}
-DEFAULT_ON = {"pet", "comm", "dungeon", "claim", "bonus"}     # 兌換序號預設不勾
+DEFAULT_ON = {"pet", "comm", "dungeon", "claim", "bonus", "ticket"}     # 兌換序號預設不勾
+
+
+LAST_NOTES = ({}, [])           # 最近一次 do_account：(每項任務的結果, 其他附註)
+
+
+def _remember_notes(by_task, notes):
+    global LAST_NOTES
+    task_notes = set(by_task.values())
+    LAST_NOTES = (dict(by_task), [x for x in notes if x not in task_notes])
+
+
+def merge_retry(first, second):
+    """把補跑的結果合進第一次的總結。
+
+    原本失敗、補跑成功 → 只留綠色 ✓，後面註明（補跑後成功）；補跑也失敗 → ✗（補跑也失敗）。
+    原本就成功、只是跟著重跑的（例如補完寵物順便再領一次）→ 留原本的；領取有多領到才註明。
+    """
+    import re as _re
+    (t1, x1), (t2, x2) = first, second
+    merged = dict(t1)
+    for k, note2 in t2.items():
+        note1 = t1.get(k, "")
+        if not note1:
+            merged[k] = note2
+        elif note1.startswith("✗"):
+            merged[k] = note2 + ("（補跑後成功）" if note2.startswith("✓")
+                                 else "（補跑也失敗）" if note2.startswith("✗") else "")
+        elif k == "claim":
+            more = sum(int(v) for v in _re.findall(r"(\d+) 項", note2))
+            if more:
+                merged[k] = note1 + f"（補跑又領了 {more} 項）"
+    extras = x1 + [x for x in x2 if x not in x1]
+    return "；".join([merged[k] for k in ALL_TASKS if k in merged] + extras), (merged, extras)
 
 
 def do_account(idx, hwnd, tasks=None):
@@ -2964,12 +3159,14 @@ def do_account(idx, hwnd, tasks=None):
     CUR_HWND = hwnd
     CUR_ACCOUNT = account_key(hwnd)
     DAILY_OPEN_NOW = False
+    _remember_notes({}, [])                        # 先清掉，免得一開始就失敗時沿用上一個帳號的結果
     tasks = set(DEFAULT_ON) if tasks is None else set(tasks)
     KEEP_DAILY = "claim" in tasks                  # 委託做完直接接著領取，不用關掉日常面板再開
     if not ENABLE_BONUS:
         tasks.discard("bonus")
     orig = get_rect(hwnd)
     notes = []
+    by_task = {}                                   # 每項任務自己的結果（補跑時拿來合併總結）
     flags = {}
     try:
         normalize_window(hwnd)
@@ -2990,6 +3187,7 @@ def do_account(idx, hwnd, tasks=None):
                 print(f"    → 完成：{msg}", flush=True)
                 flags[key] = True
                 notes.append("✓" + msg)
+                by_task[key] = "✓" + msg
                 return
             global UNSURE
             UNSURE = False
@@ -3019,6 +3217,7 @@ def do_account(idx, hwnd, tasks=None):
                 flags[key] = bool(ok)          # 要手動處理的不算失敗，也不補跑
             # 總結裡每一項前面標 ✓／✗／⚠，GUI 照這個分別上色（綠／紅／黃）
             notes.append(("⚠" if manual else "✓" if ok else "✗") + msg)
+            by_task[key] = notes[-1]
             if not ok and disconnected():
                 notes.append("偵測到斷線畫面，這隻剩下的不做了")
                 raise _Disconnected()
@@ -3033,16 +3232,20 @@ def do_account(idx, hwnd, tasks=None):
             run("bonus", do_bonus)
         if "dungeon" in tasks:                     # 副本放最後：跟日常獎勵、簽到都無關
             run("dungeon", do_dungeon)
+        if "ticket" in tasks:
+            run("ticket", do_ticket)
         if "redeem" in tasks:
             run("redeem", do_redeem)
         if "relist" in tasks:
             run("relist", do_relist)
 
+        _remember_notes(by_task, notes)
         return all(flags.values()) if flags else True, "；".join(notes), flags
 
     except (pyautogui.FailSafeException, Aborted):
         raise
     except _Disconnected:
+        _remember_notes(by_task, notes)
         return False, "；".join(notes), flags
     except Exception as e:
         return False, "；".join(notes + [f"發生錯誤：{e}"]), flags
@@ -3327,7 +3530,7 @@ def _cmd_run(only, tasks, windows):
             print(f"\n=== {win_title(n, hwnd)} ===")
             ok, msg, flags = do_account(n, hwnd, tasks)
             print(f"  {msg}  [{time.time() - t1:.0f} 秒]")
-            results.append([n, ok, msg, flags, hwnd])
+            results.append([n, ok, msg, flags, hwnd, LAST_NOTES])
     except Aborted:
         print("\n已中止，視窗已還原。")
     if not results:
@@ -3341,7 +3544,7 @@ def _cmd_run(only, tasks, windows):
         for r in redo:
             if ABORT:
                 break
-            n, _, msg, flags, hwnd = r
+            n, _, msg, flags, hwnd = r[:5]
             if "斷線" in msg:
                 print(f"\n=== {win_title(n, hwnd)}：可能斷線，不補跑 ===")
                 continue
@@ -3361,12 +3564,15 @@ def _cmd_run(only, tasks, windows):
             print(f"  {msg2}  [{time.time() - t1:.0f} 秒]")
             merged = dict(flags); merged.update(flags2)
             r[1] = all(merged.values()) if merged else True
-            r[2] = msg + "｜補跑→" + msg2
+            if r[5][0] or LAST_NOTES[0]:
+                r[2], r[5] = merge_retry(r[5], LAST_NOTES)   # 總結只留最後的結果，不再出現補跑前的紅字
+            else:
+                r[2] = msg + "｜補跑→" + msg2              # 兩次都還沒開始做任務就失敗（例如卡在不明畫面）
             r[3] = merged
 
     print("\n========== 總結 ==========")
     good = sum(r[1] for r in results)
-    for n, ok, msg, _, hwnd in results:
+    for n, ok, msg, _, hwnd, _ in results:
         print(f"{'OK ' if ok else '!! '}{win_title(n, hwnd, pad=True)}：{msg}")
     print(f"\n{good}/{len(results)} 個帳號全部完成，共 {time.time() - t0:.0f} 秒")
     todo = sum(1 for r in results if "⚠" in r[2])
