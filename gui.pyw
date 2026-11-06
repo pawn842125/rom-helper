@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.05"
+__version__ = "2026.11.05n"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -154,6 +154,14 @@ CALIB_GROUPS = [
          ("grid",),
          ("tmpl", "pet_gift.png", "禮物圖示（九宮格模式不需要，只是多一層確認）", (36, 36), "btn", False),
      ]},
+    {"title": "副本掃蕩券",
+     "how": "快捷列 F2 放副本掃蕩券；用一張讓禮物視窗跳出來再抓（先抓好再關掉視窗）",
+     "items": [
+         ("tmpl", "ticket_icon.png", "快捷列 F2 上的掃蕩券圖示（只框圖示，不要框到下面的數字；沒有券的角色不會按）",
+          (34, 26), "btn", "feat"),
+         ("point", "ticket_slot", "快捷列 F2 那一格（程式在這裡確認是不是掃蕩券；雷電也從這裡點）", "feat"),
+         ("tmpl", "sweep_gift.png", "用掃蕩券後跳出的視窗，上方紅色金邊的禮物盒", (60, 50), "btn", "feat"),
+     ]},
     {"title": "副本掃蕩",
      "how": "按 U（雷電：先點上方「更多」展開選單 → 再點選單裡的「副本」）→ 左邊清單找到狂想寓言點進去 → 上方選 Lv.20",
      "items": [
@@ -190,10 +198,35 @@ CALIB_GROUPS = [
     {"title": "一鍵上架",
      "how": "主畫面點快捷列第 1 格（交易所）→ 點「我要出售」；要有過期貨物，右下才會出現「一鍵上架」",
      "items": [
-         ("point", "exchange_slot", "快捷列上「交易所」那一格（第 1 格黃色帳篷；在主畫面抓）", False),
-         ("tmpl", "exchange_sell_tab.png", "交易所上方的「我要出售」分頁（框那四個字）", (110, 32), "btn", False),
-         ("tmpl", "relist_btn.png", "右下角黃色「一鍵上架」按鈕（要有過期貨物才會出現）", (170, 44), "btn", False),
-         ("tmpl", "relist_yes.png", "按一鍵上架後，確認視窗裡綠色的「是」", (150, 44), "btn", False),
+         ("point", "exchange_slot", "快捷列上「交易所」那一格（第 1 格黃色帳篷；在主畫面抓）", "feat"),
+         ("tmpl", "exchange_sell_tab.png", "交易所上方的「我要出售」分頁（框那四個字）", (62, 22), "btn", "feat"),
+         ("tmpl", "relist_btn.png", "右下角黃色「一鍵上架」按鈕（要有過期貨物才會出現）", (130, 32), "btn", "feat"),
+         ("tmpl", "relist_yes.png", "按一鍵上架後，確認視窗裡綠色的「是」", (140, 34), "btn", "feat"),
+     ]},
+    {"title": "燃料輪替",
+     "how": "依序到這些畫面抓：設置面板 → 回到登錄後的標題畫面 → 選角畫面 → 隊伍面板（點隊長）→ "
+            "主畫面左下對話框（系統）→ 包包愛心分頁（點燃料）。"
+            "設置裡的「遊戲設置」卡片沿用「兌換序號」那組；「離開隊伍」、10000 紅字沿用「組隊輪替」那組",
+     "items": [
+         ("tmpl", "back_login.png", "設置面板下方的「回到登錄」", (96, 34), "btn", "feat"),
+         ("tmpl", "title_start.png", "回到登錄後，標題畫面中間的「開始遊戲」", (80, 26), "btn", "feat"),
+         ("tmpl", "charsel_start.png", "選角畫面右下角的「開始遊戲」", (120, 30), "btn", "feat"),
+         ("tmpl", "charsel_plus.png", "選角畫面空格子的「＋」（只有兩隻角色的帳號才有；選用）", (40, 40), "btn", False),
+         ("point", "char_slot_1", "選角畫面左邊第 1 個頭像（本尊）", "feat"),
+         ("point", "char_slot_2", "選角畫面左邊第 2 個頭像", "feat"),
+         ("point", "char_slot_3", "選角畫面左邊第 3 個頭像", "feat"),
+         ("tmpl", "leader_star.png", "隊伍面板裡，隊長卡片右上角的紅色星星", (20, 28), "btn", "feat"),
+         ("tmpl", "follow_off.png", "點隊長後的腳印：還沒跟隨（沒有斜線）", (32, 32), "btn", "feat"),
+         ("tmpl", "follow_on.png", "點隊長後的腳印：已跟隨（有紅色斜線）", (32, 32), "btn", "feat"),
+         ("point", "chat_open", "主畫面左下角的對話框（點它會打開聊天）", "feat"),
+         ("tmpl", "chat_sys_tab.png", "聊天視窗左邊的「系統」分頁", (60, 30), "btn", "feat"),
+         ("tmpl", "chat_fuel.png", "聊天視窗裡的「獲得燃料」四個字（只框字，不要框到 ×4）", (56, 18), "btn", "feat"),
+         ("tmpl", "chat_close.png", "聊天視窗右邊的收起箭頭「<」", (20, 46), "btn", "feat"),
+         ("point", "bag_btn", "主畫面上方「包包」按鈕（雷電用；官方按 B，雷電預設 611, 45）", "feat:nokey"),
+         ("point", "bag_fav_tab", "包包裡的愛心分頁", "feat"),
+         ("tmpl", "fuel_item.png", "包包愛心分頁裡的燃料圖示（只框上半部的紅色礦石，滑鼠放礦石中間偏上；"
+          "右下角的數量會一直變，框到就會認不到）", (40, 28), "btn", "feat"),
+         ("tmpl", "fuel_full.png", "點燃料後「每日獲取上限：2000/2000」裡的 2000/2000", (50, 16), "btn", "feat"),
      ]},
     {"title": "組隊輪替",
      "how": "各項目說明有寫在哪個畫面。好友 ❤ 最愛裡只放隊長",
@@ -342,8 +375,18 @@ ROM Classic（仙境傳說 Classic）每日任務自動化，官方 PC 版和雷
 GUI →「設定」分頁 →「檢查更新」。只會換程式檔，你自己的校正、模板、設定都不會動。
 有問題可以按「退回上一版」。
 
+## 共用模板
+作者發布時會一起分享模板和校正好的位置。你的 GUI 開啟時會自動「只補你缺的」，你自己抓過的完全不動。
+某張在你電腦上認不太到（校正頁「測試」分數低），自己補抓一張就好。
+
 這裡只放程式檔，不放任何人的設定、模板或帳號資料。
 """
+
+
+def _q(path):
+    """網址裡的中文（例如 templates/官方/xx.png）要編碼。"""
+    import urllib.parse
+    return urllib.parse.quote(path, safe="/")
 
 
 def _http(url, data=None, method=None, headers=None, timeout=20):
@@ -429,7 +472,7 @@ def gh_api(path, token, method="GET", body=None):
     if data is not None:
         headers["Content-Type"] = "application/json"
     try:
-        raw = _http(_API + path, data, method, headers, timeout=30)
+        raw = _http(_API + _q(path), data, method, headers, timeout=30)
         return json.loads(raw.decode("utf-8")) if raw else {}
     except urllib.error.HTTPError as e:
         if e.code == 404 and method == "GET":
@@ -448,6 +491,87 @@ def gh_put(name, data, token, message):
     if cur and cur.get("sha"):
         body["sha"] = cur["sha"]
     gh_api(name, token, "PUT", body)
+
+
+def gh_delete(name, sha, token, message):
+    gh_api(name, token, "DELETE", {"message": message, "sha": sha, "branch": UPDATE_BRANCH})
+
+
+def git_sha(data):
+    """GitHub 用來分辨檔案有沒有變的檢查碼（跟它算的一樣，才知道哪些模板要重傳）。"""
+    import hashlib
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def shared_point_keys():
+    """校正頁上所有「位置」項目，加上寵物九宮格和模板的點擊偏移：這些是大家可以共用的校正結果。"""
+    keys = {item[1] for spec in CALIB_GROUPS for item in spec["items"] if item[0] == "point"}
+    return sorted(keys | {"pet_slots", "offsets"})
+
+
+def local_templates(prof):
+    d = os.path.join(rd.PROFILES_DIR, prof, "templates")
+    if not os.path.isdir(d):
+        return {}
+    out = {}
+    for n in sorted(os.listdir(d)):
+        if n.lower().endswith(".png") and os.path.isfile(os.path.join(d, n)):
+            with open(os.path.join(d, n), "rb") as f:
+                out[n] = f.read()
+    return out
+
+
+def sync_shared(info, say=print):
+    """把 GitHub 上的共用模板、位置「只補缺的」：自己已經有的完全不動。回傳 (補了幾張模板, 補了幾個位置)。"""
+    import hashlib
+    added_t = added_p = 0
+    for prof, files in (info.get("templates") or {}).items():
+        if prof not in rd.PROFILE_NAMES:
+            continue
+        tdir = os.path.join(rd.PROFILES_DIR, prof, "templates")
+        os.makedirs(tdir, exist_ok=True)
+        for n, sha in files.items():
+            if not n.lower().endswith(".png") or "/" in n or "\\" in n or n.startswith("."):
+                continue                            # 只收單純的 png 檔名
+            dst = os.path.join(tdir, n)
+            if os.path.exists(dst):
+                continue                            # 自己已經有：不動（自己抓的比較準）
+            try:
+                data = _http(_RAW + _q(f"templates/{prof}/{n}"))
+            except Exception as e:
+                say(f"  共用模板 {prof}/{n} 下載失敗：{e}")
+                continue
+            if hashlib.sha256(data).hexdigest() != sha:
+                say(f"  共用模板 {prof}/{n} 下載不完整，跳過")
+                continue
+            with open(dst, "wb") as f:
+                f.write(data)
+            added_t += 1
+            say(f"  補上共用模板：{prof}／{n}")
+    for prof, pts in (info.get("points") or {}).items():
+        if prof not in rd.PROFILE_NAMES:
+            continue
+        cfg_path = os.path.join(rd.PROFILES_DIR, prof, "config.json")
+        cfg = rd._read_json(cfg_path)
+        changed = False
+        for k, v in pts.items():
+            if k == "offsets" and isinstance(v, dict):
+                mine = cfg.setdefault("offsets", {})
+                for name, off in v.items():
+                    if name not in mine:
+                        mine[name] = off
+                        changed = True
+                        added_p += 1
+            elif k not in cfg:
+                cfg[k] = v
+                changed = True
+                added_p += 1
+                say(f"  補上共用位置：{prof}／{k}")
+        if changed:
+            os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, ensure_ascii=False, indent=2)
+    return added_t, added_p
 
 
 def personal_leaks(text):
@@ -476,6 +600,9 @@ class App:
     def __init__(self, root):
         self.root = root
         self.q = queue.Queue()
+        # 背景執行緒要叫視窗做事（跳視窗、改按鈕）一律丟進這個信箱，由視窗自己在 pump 裡拿出來做。
+        # 背景直接碰 tkinter 會在視窗剛好關掉／重開時整個當掉（pythonw.exe 記憶體不能為 read）。
+        self.uiq = queue.Queue()
         self.worker = None
         self.fixed_hwnd = None
         self.fixed_orig = None
@@ -516,6 +643,8 @@ class App:
         nb.add(self.tab_party, text="  組隊輪替  ")
         self.tab_relist = ttk.Frame(nb)
         nb.add(self.tab_relist, text="  一鍵上架  ")
+        self.tab_fuel = ttk.Frame(nb)
+        nb.add(self.tab_fuel, text="  燃料輪替  ")
         self.tab_set = ttk.Frame(nb)
         nb.add(self.tab_set, text="  設定  ")
 
@@ -523,6 +652,7 @@ class App:
         self._build_calib()
         self._build_party()
         self._build_relist()
+        self._build_fuel()
         self._build_settings()
 
         self.status = tk.StringVar(value=f"待命中（執行中按 {rd.STOP_KEY.upper()} 可立刻停止）　｜　版本 {__version__}")
@@ -638,7 +768,7 @@ class App:
         ttk.Label(multi, text="欄數：").pack(side="left")
         self.arrange_cols = tk.StringVar(value="0")
         ttk.Spinbox(multi, from_=0, to=8, width=3, textvariable=self.arrange_cols).pack(side="left")
-        ttk.Label(multi, text="（0=自動；排好後視窗編號=資料夾編號）", foreground="#666").pack(side="left", padx=6)
+        ttk.Label(multi, text="（0=自動挑視窗最大的排法；視窗會保持遊戲原本比例；排好後視窗編號=資料夾編號）", foreground="#666").pack(side="left", padx=6)
 
         bar = ttk.Frame(f, padding=(8, 4))
         bar.pack(fill="x")
@@ -1014,11 +1144,13 @@ class App:
         for item in spec["items"]:
             if item[0] == "tmpl":
                 _, name, desc, (w, h), kind, req = item
-                self._tmpl_row(body, name, desc + ("" if self.is_required(req) else "　(選用)"),
+                self._tmpl_row(body, name, desc + ("" if self.is_required(req) else
+                                                   "　(用這個功能就要抓)" if self.is_feature(req) else "　(選用)"),
                                w, h, kind)
             elif item[0] == "point":
                 _, key, desc, req = item
-                self._point_row(body, key, desc + ("" if self.is_required(req) else "　(選用)"),
+                self._point_row(body, key, desc + ("" if self.is_required(req) else
+                                                   "　(用這個功能就要抓)" if self.is_feature(req) else "　(選用)"),
                                 cfg.get(key) or self.point_default(key))
             elif item[0] == "grid":
                 self._grid_block(body, cfg)
@@ -1060,7 +1192,8 @@ class App:
         party = {"party_avatar": "P_AVATAR", "party_fav_tab": "P_FAV_TAB",
                  "party_friend_first": "P_FRIEND_FIRST", "party_apply_flag": "P_APPLY_FLAG",
                  "party_btn": "P_PARTY_BTN", "friend_btn": "P_FRIEND_BTN",
-                 "more_btn": "P_MORE_BTN"}
+                 "more_btn": "P_MORE_BTN", "chat_open": "P_CHAT_OPEN", "bag_btn": "P_BAG_BTN",
+                 "bag_fav_tab": "P_BAG_FAV"}
         if key in party:
             return getattr(rp, party[key], None)
         return getattr(rd, key.upper(), None)
@@ -1079,11 +1212,38 @@ class App:
             self.toggle_group(g, want)
 
     @staticmethod
+    def is_feature(flag):
+        """"feat" 用這個功能就需要；"feat:nokey" 用這個功能、而且沒快捷鍵的環境才需要。"""
+        if flag == "feat":
+            return True
+        return flag == "feat:nokey" and not rd.HOTKEYS
+
+    @staticmethod
     def is_required(flag):
         """True 一律必要；"nokey" 只在沒快捷鍵的環境必要；"with:xx.png" 有抓那張模板才必要；False 選用。"""
         if isinstance(flag, str) and flag.startswith("with:"):
             return rd.has(flag[5:])
         return flag is True or (flag == "nokey" and not rd.HOTKEYS)
+
+    def feature_health(self, spec):
+        """「用這個功能就要抓」的項目：回傳 (抓了幾個, 總共幾個, 缺的名字清單)。"""
+        cfg = load_cfg()
+        got, total, missing = 0, 0, []
+        for item in spec["items"]:
+            if item[0] == "tmpl":
+                _, name, desc, _, _, req = item
+                ok = rd.has(name)
+            elif item[0] == "point":
+                _, key, desc, req = item
+                ok = bool(cfg.get(key) or self.point_default(key))
+            else:
+                continue
+            if self.is_feature(req):
+                total += 1
+                got += ok
+                if not ok:
+                    missing.append(desc.split("（")[0])
+        return got, total, missing
 
     def group_health(self, spec):
         """回傳 (必要項目缺幾個, 必要項目總數, 缺的名字清單)。"""
@@ -1454,6 +1614,20 @@ class App:
                 g["status"].configure(text="▸", foreground="#666")
                 g["count"].configure(text="")
                 continue
+            fgot, ftotal, fnames = self.feature_health(g["spec"])
+            if ftotal and not total:
+                # 整組都是「用這個功能才要抓」：顯示抓了幾個，沒開始用就灰色，不算問題
+                if fgot == ftotal:
+                    g["status"].configure(text="✔", foreground="#26a269")
+                    g["count"].configure(text=f"{fgot}/{ftotal}", foreground="#26a269")
+                elif fgot == 0:
+                    g["status"].configure(text="○", foreground="#888")
+                    g["count"].configure(text=f"0/{ftotal}　還沒抓（用到這個功能才需要）", foreground="#888")
+                else:
+                    g["status"].configure(text="⚠", foreground="#c64600")
+                    g["count"].configure(text=f"{fgot}/{ftotal}　缺 " + "、".join(fnames[:4])
+                                         + ("…" if len(fnames) > 4 else ""), foreground="#c64600")
+                continue
             if miss:
                 g["status"].configure(text="⚠", foreground="#c64600")
                 g["count"].configure(text=f"{total - miss}/{total}　缺 " + "、".join(names),
@@ -1503,6 +1677,79 @@ class App:
         for tag, color in (("ok", "#6ac46a"), ("bad", "#e06c6c"),
                            ("head", "#6cb6ff"), ("warn", "#e0b060")):
             self.relist_log.tag_config(tag, foreground=color)
+
+    def _build_fuel(self):
+        f = self.tab_fuel
+        ttk.Label(f, text="鐵匠打怪掉燃料，每隻角色每天 2000。每個帳號依序：第 2 隻 → 第 3 隻（小號，燃料滿 2000 離隊）"
+                          "→ 第 1 隻（本尊，戰鬥次數 10000 才離隊），都是進打手的隊伍「跟隨」吸。\n"
+                          "事前準備：三隻都換好鐵匠、燃料設成包包愛心、好友 ❤ 裡只放打手。"
+                          "打手要開「自動接受入隊」。第一次用先到「校正 → 燃料輪替」抓好。\n"
+                          "跑的時候程式會一直切換視窗，電腦不能做別的事；按 F12 停止。",
+                  foreground="#666", wraplength=660, justify="left").pack(fill="x", padx=8, pady=(8, 4))
+        box = ttk.LabelFrame(f, text="設定", padding=8)
+        box.pack(fill="x", padx=8, pady=4)
+        shared = load_shared()
+        self.fuel_vars = {}
+        for i, (key, label, default) in enumerate((("fuel_max", "同時最多幾隻在吸（隊伍 6 人含打手 → 5）", 5),
+                                                    ("fuel_gap", "同一個視窗至少隔幾秒再看一次", 20))):
+            ttk.Label(box, text=label).grid(row=i, column=0, sticky="w", pady=2)
+            var = tk.StringVar(value=str(shared.get(key, default)))
+            ttk.Entry(box, textvariable=var, width=8).grid(row=i, column=1, sticky="w", padx=6)
+            self.fuel_vars[key] = var
+        bar = ttk.Frame(f, padding=(8, 4))
+        bar.pack(fill="x")
+        self.btn_fuel = ttk.Button(bar, text="開始燃料輪替（選打手和帳號）", command=self.fuel_start)
+        self.btn_fuel.pack(side="left")
+        self.btn_fuel_stop = ttk.Button(bar, text="停止", width=8, command=self.stop, state="disabled")
+        self.btn_fuel_stop.pack(side="left", padx=6)
+        ttk.Button(bar, text="清除紀錄", command=lambda: self.fuel_log.delete("1.0", "end")).pack(side="right")
+        ttk.Button(bar, text="清除今天的燃料紀錄", command=self.fuel_clear).pack(side="right", padx=6)
+        frame = ttk.Frame(f, padding=(8, 0, 8, 8))
+        frame.pack(fill="both", expand=True)
+        self.fuel_log = tk.Text(frame, wrap="word", font=("Consolas", 10),
+                                bg="#1e1e1e", fg="#dcdcdc", insertbackground="#dcdcdc")
+        sb = ttk.Scrollbar(frame, command=self.fuel_log.yview)
+        self.fuel_log.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        self.fuel_log.pack(side="left", fill="both", expand=True)
+        for tag, color in (("ok", "#6ac46a"), ("bad", "#e06c6c"), ("head", "#6cb6ff"), ("warn", "#e0b060")):
+            self.fuel_log.tag_config(tag, foreground=color)
+
+    def fuel_save(self):
+        shared = load_shared()
+        try:
+            shared["fuel_max"] = max(1, min(5, int(self.fuel_vars["fuel_max"].get())))
+            shared["fuel_gap"] = max(5.0, float(self.fuel_vars["fuel_gap"].get()))
+        except ValueError:
+            messagebox.showerror("設定有誤", "同時幾隻、隔幾秒要填數字。")
+            return False
+        save_shared(shared)
+        rp._load()
+        return True
+
+    def fuel_start(self):
+        if not self._idle("開始"):
+            return
+        if not self.fuel_save():
+            return
+        if self.fixed_hwnd:
+            self.unfix_window()
+
+        def go(leader, accounts):
+            self.fuel_log.delete("1.0", "end")
+            self.start(lambda: rp.fuel_run(leader=leader, accounts=accounts),
+                       "燃料輪替中，請勿操作滑鼠鍵盤", target=self.fuel_log)
+        self.party_pick(go)
+
+    def fuel_clear(self):
+        if not messagebox.askyesno("清除今天的燃料紀錄",
+                                   "程式會忘記今天哪些角色的燃料已經吸滿，下次全部重新確認。要清除嗎？"):
+            return
+        import json as _json
+        st = rd._state()
+        st["done"] = {k: v for k, v in st["done"].items() if not k.startswith("fuel|")}
+        rd._save_state(st)
+        self.log("已清除今天的燃料紀錄。\n", "head")
 
     def relist_start(self):
         windows = self.parse_windows()
@@ -1836,17 +2083,51 @@ class App:
                 if getattr(e, "code", None) == 404:
                     err = "GitHub 上還沒有發布任何版本（作者還沒按過「發布更新」）"
                 if not silent:
-                    self.root.after(0, lambda: messagebox.showerror(
+                    self.ui(lambda: messagebox.showerror(
                         "連不上更新伺服器", f"檢查更新失敗：{err}\n\n可能是網路問題，等一下再試。"))
                 return
-            self.root.after(0, lambda: self._update_found(info, silent))
+            self.ui(lambda: self._update_found(info, silent))
         threading.Thread(target=work, daemon=True).start()
+
+    def _sync_templates(self, info, silent):
+        """背景補上共用模板和位置（只補缺的），做完通知視窗。
+        作者自己的電腦（存了發布鑰匙）不補：模板就是從這台來的，自己刪掉的壞模板不該又被補回來。"""
+        if load_token():
+            if not silent:
+                messagebox.showinfo("已經是最新版", f"目前的 {__version__} 就是最新版。\n"
+                                    "（這台是發布用的電腦，不會從 GitHub 補模板）")
+            return
+
+        def work():
+            try:
+                t, p = sync_shared(info, say=lambda m: self.ui(lambda m=m: self.log(m + "\n")))
+            except Exception as e:
+                err = str(e)
+                self.ui(lambda: self.log(f"補共用模板時出錯：{err}\n", "warn"))
+                return
+            self.ui(lambda: self._synced(t, p, silent))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _synced(self, t, p, silent):
+        if t or p:
+            rd._tmpl_cache.clear()
+            rd._mask_cache.clear()
+            rd.set_profile(rd.ACTIVE_PROFILE)          # 重新讀一次，新補的位置馬上生效
+            rp._load()
+            try:
+                self.refresh_counts()
+            except Exception:
+                pass
+            self.log(f"補上了共用模板 {t} 張、位置 {p} 個（你原本就有的都沒動）。"
+                     "如果某張在你電腦上認不太到，到校正頁按「測試」，分數低的那張自己補抓一張就好。\n", "ok")
+        if not silent:
+            messagebox.showinfo("已經是最新版", f"目前的 {__version__} 就是最新版。"
+                                + (f"\n\n另外補上了共用模板 {t} 張、位置 {p} 個。" if t or p else ""))
 
     def _update_found(self, info, silent):
         ver = info.get("version", "")
         if not newer(ver, __version__):
-            if not silent:
-                messagebox.showinfo("已經是最新版", f"目前的 {__version__} 就是最新版。")
+            self._sync_templates(info, silent)      # 程式是最新的，也看看有沒有新的共用模板可以補
             return
         if silent:
             self.log(f"有新版 {ver} 可以更新（目前 {__version__}）：到「設定」分頁按「檢查更新」。\n", "warn")
@@ -1862,14 +2143,14 @@ class App:
 
         def work():
             try:
-                files = download_update(info, say=lambda t: self.root.after(0, lambda t=t: self.log(t + "\n")))
+                files = download_update(info, say=lambda t: self.ui(lambda t=t: self.log(t + "\n")))
                 bdir = apply_update(files, __version__)
             except Exception as e:
                 err = str(e)
-                self.root.after(0, lambda: (self.log(f"更新失敗：{err}（沒有換掉任何檔案）\n", "bad"),
+                self.ui(lambda: (self.log(f"更新失敗：{err}（沒有換掉任何檔案）\n", "bad"),
                                             messagebox.showerror("更新失敗", f"{err}\n\n沒有換掉任何檔案，舊版照常可以用。")))
                 return
-            self.root.after(0, lambda: self._update_done(ver, bdir))
+            self.ui(lambda: self._update_done(ver, bdir))
         threading.Thread(target=work, daemon=True).start()
 
     def _update_done(self, ver, bdir):
@@ -1975,6 +2256,20 @@ class App:
                 "版本沒有比較新", f"GitHub 上已經是 {cur}，目前要發布的是 {__version__}。\n"
                                 f"朋友不會收到更新提示。確定還是要發布嗎？"):
             return
+        tmpl = {prof: local_templates(prof) for prof in rd.PROFILE_NAMES}
+        keys = shared_point_keys()
+        points = {}
+        for prof in rd.PROFILE_NAMES:
+            cfg = rd._read_json(os.path.join(rd.PROFILES_DIR, prof, "config.json"))
+            points[prof] = {k: cfg[k] for k in keys if k in cfg}
+        summary = "、".join(f"{prof} {len(tmpl[prof])} 張" for prof in rd.PROFILE_NAMES)
+        if not messagebox.askyesno(
+                "一起分享模板和位置",
+                f"這次會把你的模板（{summary}）和校正好的位置一起傳上去，朋友更新時會「只補他缺的」。\n\n"
+                "GitHub 是公開的：請確認模板裡沒有截到角色名字或聊天內容。\n"
+                f"（模板在 {rd.PROFILES_DIR} 底下各環境的 templates 資料夾，可以先打開看看）\n\n"
+                "要一起分享嗎？（按「否」就只發布程式）"):
+            tmpl, points = {}, {}
         notes = self._ask_notes(__version__)
         if notes is None:
             return
@@ -1988,10 +2283,26 @@ class App:
                 gh_put(n, datas[n], token, msg)
             print("  更新說明頁（README.md）…", flush=True)
             gh_put("README.md", GITHUB_README.encode("utf-8"), token, msg)
+            manifest = {}
+            for prof, files in tmpl.items():
+                remote = gh_api(f"templates/{prof}", token) or []
+                rsha = {it["name"]: it["sha"] for it in remote if isinstance(it, dict) and it.get("type") == "file"}
+                up = [n for n, d in files.items() if rsha.get(n) != git_sha(d)]
+                gone = [n for n in rsha if n not in files]
+                print(f"  {prof} 模板：共 {len(files)} 張，要上傳 {len(up)} 張（新的或改過的）、"
+                      f"刪掉 {len(gone)} 張（你已經刪掉的）", flush=True)
+                for k, n in enumerate(up, 1):
+                    gh_put(f"templates/{prof}/{n}", files[n], token, msg)
+                    if k % 10 == 0 or k == len(up):
+                        print(f"    已上傳 {k}/{len(up)}", flush=True)
+                for n in gone:
+                    gh_delete(f"templates/{prof}/{n}", rsha[n], token, msg)
+                manifest[prof] = {n: hashlib.sha256(d).hexdigest() for n, d in files.items()}
             info = {"version": __version__, "notes": notes,
                     "published": _t.strftime("%Y-%m-%d %H:%M"),
                     "files": {n: {"sha256": hashlib.sha256(datas[n]).hexdigest(), "size": len(datas[n])}
-                              for n in names}}
+                              for n in names},
+                    "templates": manifest, "points": points}
             print("  最後上傳版本資訊（version.json）：朋友從這一刻開始收得到更新", flush=True)
             gh_put("version.json", json.dumps(info, ensure_ascii=False, indent=1).encode("utf-8"), token, msg)
             print(f"→ 發布完成：{__version__}。朋友按「檢查更新」就會拿到。")
@@ -2077,8 +2388,21 @@ class App:
     def clear_log(self):
         self.logbox.delete("1.0", "end")
 
+    def ui(self, fn):
+        """背景執行緒用：請視窗（主執行緒）待會做 fn。安全，不會直接碰 tkinter。"""
+        self.uiq.put(fn)
+
     def pump(self):
         self.drain()
+        while True:
+            try:
+                fn = self.uiq.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                fn()
+            except Exception as e:
+                self.log(f"（介面更新時出錯：{e}）\n", "warn")
         self.root.after(100, self.pump)
 
     def drain(self):
@@ -2096,6 +2420,8 @@ class App:
         self.btn_party_stop.configure(state="normal" if on else "disabled")
         self.btn_relist.configure(state=state)
         self.btn_relist_stop.configure(state="normal" if on else "disabled")
+        self.btn_fuel.configure(state=state)
+        self.btn_fuel_stop.configure(state="normal" if on else "disabled")
         self.status.set((label + f"　｜　按 {rd.STOP_KEY.upper()} 立刻停止") if on
                         else f"待命中（執行中按 {rd.STOP_KEY.upper()} 可立刻停止）")
         if not on:
@@ -2121,7 +2447,7 @@ class App:
             finally:
                 sys.stdout = old
                 rd.ABORT = False                 # 停止的旗子放下，不然之後校正頁一截圖就會當成「要中止」
-                self.root.after(0, lambda: self.busy(False))
+                self.ui(lambda: self.busy(False))
 
         self.worker = threading.Thread(target=job, daemon=True)
         self.worker.start()
