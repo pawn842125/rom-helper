@@ -1,7 +1,7 @@
 {
  "version": "2026.11.06m",
- "notes": "【2026.11.06m 更新內容】\n\n■ 修正\n・副本掃蕩：「消耗玩法時長」已經變紅了，程式卻判斷沒紅、一直掃到上限 → 修正\n  （有些電腦畫面上的數字比較小，以前認不出來）\n・燃料輪替／組隊輪替離隊時，卡在「是否要退出當前組隊？」→ 點「確定」沒反應會自動再點，最多 3 次",
- "published": "2026-11-06 15:52",
+ "notes": "",
+ "published": "2026-11-06 16:01",
  "files": {
   "rom_daily.py": {
    "sha256": "5ca981234b63c6f72d08233c39eaa9463211065c55f3062334fcf7902b5d0883",
@@ -47,6 +47,7 @@
    "close_x_2.png": "63f7e973fd1553646de80b7996fd97769defa2942c933234ba2fb9727e95ba90",
    "commission_row.png": "1ca38c05c9de8cde1daabf51d53d2fc4b71d2972bf1b701d0cdfef341fea9c53",
    "confirm_ok.png": "8039184c1ccc6beeb3eed30979115654397b8d1999c69fab22c0f5322940b4ff",
+   "confirm_ok_2.png": "34e82e62b977e8bed4f097aa58490adf31a54b6c0613d39bb1a40b418cfe67ba",
    "count_full.png": "8e9e7438f8240af2d1f378387fb941a26480d4580e90cc25e471286c40678684",
    "create_party.png": "eaa5c3eb684161de483c7e93f1dce404b5f93274993b6602b30cdf51d314badc",
    "daily.png": "89d86bb8ed376c2bed44e02c89ec9b8fa49aceea26f8c07f057510adcc331ed9",
