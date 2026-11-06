@@ -1,19 +1,19 @@
 {
- "version": "2026.11.05n",
- "notes": "新增燃料輪替 時空矩陣掃蕩券",
- "published": "2026-11-06 10:57",
+ "version": "2026.11.06l",
+ "notes": "【2026.11.06l 更新內容】（從 11.05n 起）\n\n■ 畫面整理\n・分頁順序：控制台 → 燃料輪替 → 組隊輪替 → 校正 → 設定\n・一鍵上架改成控制台的一個勾選（預設不勾，要上架時再勾），拿掉一鍵上架分頁\n・控制台任務排成兩排；多開管理排整齊，長說明改成滑鼠移上去才顯示\n・設定分頁可以用滾輪往下捲，分成「常用」和「進階」（進階按一下才展開）\n・「副本掃蕩券」改名為「時空矩陣掃蕩券」\n\n■ 新功能\n・控制台新增「各帳號設定…」：每個帳號可以選副本掃哪一級（I Lv.20 ～ XIV Lv.110）\n  要掃 Lv.20 以外的，請到「校正 → 副本掃蕩」抓「最右邊那格（VII）」\n・燃料輪替：先按「燃料角色設定…」選打手、每個帳號勾要吸的角色（第2隻／第3隻／本尊），\n  存好後按「開始」就直接照設定跑；都不勾的帳號完全不會碰；沒勾本尊的吸完會換回本尊\n\n■ 修正\n・視窗縮小在工作列時跑完，會叫不出來（要重開模擬器）→ 現在跑完會照原樣縮回工作列\n  （已經叫不出來的，按控制台「自動排列視窗」可以拉回來）\n・停止改成只用 F12，滑鼠碰到螢幕左上角不會再停止\n・副本面板明明開了卻說「打不開」→ 現在多幾種認法（所有副本、狂想寓言、蛋糕保衛戰）\n・在壓縮檔裡直接開 gui.pyw 會跳英文錯誤 → 改成白話提示「請先解壓縮」\n・燃料輪替：換角色時「開始遊戲」沒反應會自動補點；換好角色直接申請入隊、跟隨，1 分鐘後才看燃料；\n  跟隨判斷更準、沒跟到會再按；每個動作之間停 2 秒；確認有切到好友 ❤",
+ "published": "2026-11-06 14:37",
  "files": {
   "rom_daily.py": {
-   "sha256": "4958dbc615b5b6cb12f130a1626c0c4574e29284bfdf2ca64c90219dafb5d017",
-   "size": 155375
+   "sha256": "82e42204e75dae899f641f410b18dc407afaac98372041b941adac70d2d2763b",
+   "size": 161857
   },
   "rom_party.py": {
-   "sha256": "b6858be5bbd99b23ba2f91f23b67ee194b68e33b33e6030257f9fe584770b97d",
-   "size": 35206
+   "sha256": "0a80b2f30d871d51c2a43498e891c45cdc72bb9cf3ff4533ca6ba6d1f370b22d",
+   "size": 44997
   },
   "gui.pyw": {
-   "sha256": "b4c7a89c2cc95a79add4a450546d42b66d5b9f0558d712decfeeb8d4b8edbaf6",
-   "size": 130497
+   "sha256": "d0b46d10ab3cc6a2594338ea78fa2760322d8911105f12b8a82080b8df902451",
+   "size": 145711
   },
   "account_switch.pyw": {
    "sha256": "a0a6dd424fceb3ec1a9d9d11eadf403fa79e94bd0fec71a65b087c81fcd0e959",
@@ -31,6 +31,7 @@
    "bonus_claim_2.png": "951337b4dad3e98cd734689a0ac8d0ac3a44b4e9e1981e738685f581e3d5e784",
    "bonus_done_2.png": "f7e3a3e48bd8ea46150ccaef558a14c6346f878f015afd3788466930e2f818ec",
    "bonus_row_2.png": "5ec0c62bd875be4912034ceed908e6c7af5aa39125eda01a3b7cd8bf90143faa",
+   "cake_row.png": "11cc8c9846b482b5f5b81fe86e88385a7963bad41c9b2ac1167a9443e5402852",
    "charsel_plus.png": "874fb8f36b04ea6922be34d680711b8b84de6bf7c52d6f410c8af6dedc0110f9",
    "charsel_start.png": "7e05e8112d6b52d27a76d57952b5c9101f61b9cb3626c2e205e198864cf4f53d",
    "chat_close.png": "ad9916272ce87457e3782ce00155ee93ce20816043e1b8ca1de8fe577f0a581e",
@@ -53,12 +54,16 @@
    "disconnect.png": "4ce75a5c8ca920b2cf4110682d63ed352298b447bd4984094db73235d8d5b763",
    "done_stamp.png": "3239553de9a75acb453a8e1091986a3be72aaf42d3e0007b6bb78c297c4baa22",
    "dungeon_panel.png": "1f47afbbf79e0cafdc585f44565ab2aceaf9bab1099507fda5c87a079e042a69",
+   "dungeon_panel_2.png": "4556cbf104310678c6338ac5f147b6dafe1fbaa51fa11cc0cb72fba35b467e41",
    "dungeon_title.png": "b72ffcb8651009595bad78195ea76f9c2381770719110260f9c93b4f73162fe7",
    "exchange_sell_tab.png": "b30fefbe150088c214c767f9fec5156ef3441a158c22a7a1b8eb5783d0dd1894",
    "exchange_sell_tab_2.png": "6a002e5d02e1b0be79575ee6f9c74bd227b19241244048cb4e15fa5fcc563c43",
    "fable_row.png": "b1fc3d2a91cf71f5307fd74254aa5913b5d629d93fa2c0098e15ecdda83a63b9",
+   "fable_row_2.png": "779f01e900b72671be3f48fd876be8d25e91be6888097c5c216347eeca2e9d4e",
+   "fav_tab_on.png": "01f3f7250cae26d54ff79104ab65269b1a693b78a4d805f6fa1165f67bef8e8e",
    "follow_off.png": "d937fab7f7e9d3874254026397a73b40905e70b89c260d71da01073945371cdd",
    "follow_on.png": "21918d9b0c79e0c16870fc666040b78eab00c4f79bc58f75e186a9f750813e74",
+   "friend_close.png": "8ecd023799cbef9bcb90ba6ef824665db7003ca80aa8a148bcb36f0d2cd7e2f9",
    "fuel_full.png": "fd4088bff0af6b700eecc37dcb60bbe089e5d595cc2695fff6f701fa38d62ce5",
    "fuel_item.png": "3f80a7aa401f56f5d4075082669076cc800cfd240668757a9126cc7f15d353fd",
    "fuel_item_2.png": "5e9492fb55b9912a6062d9a7010354b25d55a85dae44b9a9b082c9413a866e68",
@@ -102,6 +107,7 @@
    "abandon_confirm.png": "5a5c171b573456c0bca19c357a547659c8d7dae3758135775e1267ce2896b3ae",
    "back_btn.png": "92d8f6dd6e3feba48651b05d1ea89e89afea79e7af25b67775e92d3d8d5314e1",
    "back_btn_2.png": "0cd598e298493960745b43282a8f8e714c8985998f47e16c4573783e64a2a2ed",
+   "back_login.png": "b56ee6c7bd3a3dc9aed40554e7043e2b9e735431205c39d78c0a87349db306db",
    "bonus_claim.png": "d0863aa84e885b86c8ceeadf32d0ab2a780f6915b0487492dabbef5316c15c9f",
    "bonus_done.png": "2e4311d612d433e6c4f643185f9cf47a267a31b94d707712ccd263860d71f8ad",
    "bonus_row.png": "bc201ffa59db92ae1acc4e08b5717d8da9470feea401cbdd5bdfca86591a6e88",
@@ -133,6 +139,7 @@
    "fable_row.png": "555ad2881e65577edd9cabafc2d992263f9fe49708240c7d970203add0680857",
    "follow_off.png": "35346cb27f771a05a950061b5712fd2fb75f5e7a9c6032c820ae35a840753590",
    "follow_on.png": "3a0fba919a050116108cf9d8ccc556b69703353b4d6363fdac480785e854942f",
+   "fuel_full.png": "0f96f761e34026529a12d28fda137aab8b5df3b3d6d08e8d8d10296bad971117",
    "fuel_item.png": "b93e2ad2a5624aeb218a9c21e2e068772cd787ac9a9201b59270e2ca56dc1423",
    "hotspot.png": "c77a9d4c1d753ad84bd56c1efdb066ada7e4823237fa1a6708aabc8f7982238b",
    "leader_star.png": "1ff99899e117f9a0164e0bc72e20efff6e42aee34234a5dade2391b1208ff601",
@@ -196,6 +203,10 @@
    "daily_btn": [
     491,
     82
+   ],
+   "dungeon_last_tab": [
+    715,
+    130
    ],
    "exchange_slot": [
     494,
