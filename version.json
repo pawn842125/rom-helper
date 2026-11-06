@@ -1,23 +1,412 @@
 {
- "version": "2026.11.05",
- "notes": "第一版Github",
- "published": "2026-11-05 11:32",
+ "version": "2026.11.05n",
+ "notes": "新增燃料輪替 時空矩陣掃蕩券",
+ "published": "2026-11-06 10:57",
  "files": {
   "rom_daily.py": {
-   "sha256": "5fe286f09c2866ab11a01fa272e06315d6ab0c208d8281135546615e20e63726",
-   "size": 145120
+   "sha256": "4958dbc615b5b6cb12f130a1626c0c4574e29284bfdf2ca64c90219dafb5d017",
+   "size": 155375
   },
   "rom_party.py": {
-   "sha256": "be139af85b01b14d2ab6d721c077e982275c16b497e9bbf52e4d456363f20779",
-   "size": 16111
+   "sha256": "b6858be5bbd99b23ba2f91f23b67ee194b68e33b33e6030257f9fe584770b97d",
+   "size": 35206
   },
   "gui.pyw": {
-   "sha256": "110b94f53b0ea7ec1dd2e2cd536a725ae6f3fb3fe6afa2966dbb71b35a1e6c05",
-   "size": 112051
+   "sha256": "b4c7a89c2cc95a79add4a450546d42b66d5b9f0558d712decfeeb8d4b8edbaf6",
+   "size": 130497
   },
   "account_switch.pyw": {
    "sha256": "a0a6dd424fceb3ec1a9d9d11eadf403fa79e94bd0fec71a65b087c81fcd0e959",
    "size": 16754
+  }
+ },
+ "templates": {
+  "官方": {
+   "abandon_btn.png": "7679cd3e2cc7c91efdd0ff1234aa72afdec3eea6076d983757a69e38d715d09b",
+   "abandon_confirm.png": "fe76a055705fa7d009d9fdcce947a9f76c5e773a6bf401a3c99d9333a26f85fe",
+   "back_btn_2.png": "1c2d7d6ca7294e0ac2be4d504b7aef68808cc12b5b5d7780c669bb72a8419823",
+   "back_btn_3.png": "a58f10b0bd9e963f75a38ea411c0b5ac6bbee3e42049b24e8fe3591573b216b0",
+   "back_btn_4.png": "a051aa2178daa078f169743ec5d7a7911d48b50330572340023ca4e87851490c",
+   "back_login.png": "1ba9d1819f7c681f623fe292d9e7f4be09f52fb5fb993a63089c4d3050afee93",
+   "bonus_claim_2.png": "951337b4dad3e98cd734689a0ac8d0ac3a44b4e9e1981e738685f581e3d5e784",
+   "bonus_done_2.png": "f7e3a3e48bd8ea46150ccaef558a14c6346f878f015afd3788466930e2f818ec",
+   "bonus_row_2.png": "5ec0c62bd875be4912034ceed908e6c7af5aa39125eda01a3b7cd8bf90143faa",
+   "charsel_plus.png": "874fb8f36b04ea6922be34d680711b8b84de6bf7c52d6f410c8af6dedc0110f9",
+   "charsel_start.png": "7e05e8112d6b52d27a76d57952b5c9101f61b9cb3626c2e205e198864cf4f53d",
+   "chat_close.png": "ad9916272ce87457e3782ce00155ee93ce20816043e1b8ca1de8fe577f0a581e",
+   "chat_close_2.png": "ef2dff5acfccf0c439b11d1e72df350729a7e99157dadba896c9803cda57bcef",
+   "chat_fuel.png": "6baab5a7d50a069a608afea920987139346daefb7a08bf9d3d276c8308eebb0d",
+   "chat_sys_tab.png": "c208aae9c6e8316cceb61df467a94d6966efad06dc00cb74fb5fa38cc31a839a",
+   "chat_sys_tab_2.png": "2ffe871c10a13eb6a1df20bf3b44a304cbcf53999f48dbe0c6f0c0f1434654ac",
+   "claim_2.png": "0909d385cb5624171e30e70ac40e89f8f66c539d144f7dfbc33fd0d35f4777c5",
+   "claim_3.png": "a19a336cb1469c040aad58830823b30e545eac466a64628851bdd8f4c9b363cb",
+   "claim_all_2.png": "f1f386c00977c283410dfe83d1927e1e8e7e2abb54b9bfef9ff836101e8040a3",
+   "claim_all_3.png": "844d7c20d292ac6b74e01241356f00b6138cbe0940e223eb3f193818f7d46cb6",
+   "close_x.png": "d3c8f30af81fdca8a0a1065dc98e9e4e7759aa8b12944d3a1fdf2a6e9273e6eb",
+   "close_x_2.png": "63f7e973fd1553646de80b7996fd97769defa2942c933234ba2fb9727e95ba90",
+   "commission_row.png": "1ca38c05c9de8cde1daabf51d53d2fc4b71d2972bf1b701d0cdfef341fea9c53",
+   "confirm_ok.png": "8039184c1ccc6beeb3eed30979115654397b8d1999c69fab22c0f5322940b4ff",
+   "count_full.png": "8e9e7438f8240af2d1f378387fb941a26480d4580e90cc25e471286c40678684",
+   "create_party.png": "eaa5c3eb684161de483c7e93f1dce404b5f93274993b6602b30cdf51d314badc",
+   "daily.png": "89d86bb8ed376c2bed44e02c89ec9b8fa49aceea26f8c07f057510adcc331ed9",
+   "daily_2.png": "a8d4c4cb25e3ae50e2577ef0c24ddf039a7bf1ac6c4dd7711c507c620b8d68fe",
+   "disconnect.png": "4ce75a5c8ca920b2cf4110682d63ed352298b447bd4984094db73235d8d5b763",
+   "done_stamp.png": "3239553de9a75acb453a8e1091986a3be72aaf42d3e0007b6bb78c297c4baa22",
+   "dungeon_panel.png": "1f47afbbf79e0cafdc585f44565ab2aceaf9bab1099507fda5c87a079e042a69",
+   "dungeon_title.png": "b72ffcb8651009595bad78195ea76f9c2381770719110260f9c93b4f73162fe7",
+   "exchange_sell_tab.png": "b30fefbe150088c214c767f9fec5156ef3441a158c22a7a1b8eb5783d0dd1894",
+   "exchange_sell_tab_2.png": "6a002e5d02e1b0be79575ee6f9c74bd227b19241244048cb4e15fa5fcc563c43",
+   "fable_row.png": "b1fc3d2a91cf71f5307fd74254aa5913b5d629d93fa2c0098e15ecdda83a63b9",
+   "follow_off.png": "d937fab7f7e9d3874254026397a73b40905e70b89c260d71da01073945371cdd",
+   "follow_on.png": "21918d9b0c79e0c16870fc666040b78eab00c4f79bc58f75e186a9f750813e74",
+   "fuel_full.png": "fd4088bff0af6b700eecc37dcb60bbe089e5d595cc2695fff6f701fa38d62ce5",
+   "fuel_item.png": "3f80a7aa401f56f5d4075082669076cc800cfd240668757a9126cc7f15d353fd",
+   "fuel_item_2.png": "5e9492fb55b9912a6062d9a7010354b25d55a85dae44b9a9b082c9413a866e68",
+   "fuel_item_3.png": "2a1f2516b6b28aef8b333b6ff3a14e47c4cc799985a8d039d6a4f010349470ac",
+   "hotspot_2.png": "4aa009478af856f297fe40e026a177c863b6e52eb6ebcfbdafe3ff3f9c557437",
+   "leader_star.png": "050287f5978d67cc6364c96a84f8d72272f57eef3a83227c1da27b1aa6378faa",
+   "leave_party.png": "73f49655402bc83b1eb67614e34518262a124c074e074618ef657648369d005d",
+   "lv20_tab.png": "743b6f87abe77c8ba8e57f4868fd5c1f5c11f6ac6e4c4622bb4427b6e196418c",
+   "main_mark.png": "36a4c78460338b9d513b521458c915e008af38a5c32dcce72144c0fd23ce3732",
+   "menu_settings.png": "2f142ba76025f68d9a3d861450d4ce9d7dc6fac272199be3925b3e5cbb3d97b5",
+   "pet_gift.png": "e3822481f82fed702ae3baa6f88b33efeedbf26545ad9ed8bbca178518176d45",
+   "pet_gift_2.png": "16af2eb01167fceebc4a1feadc1e44f345d06b8fab8d0640e8f520d1e820a318",
+   "pet_gift_3.png": "90e082677d20b483dd00712b2a472bd472d680fa39a2c068909fba17239016ff",
+   "pet_gift_4.png": "8da66e40fc2d021351c232f17187929669e180748ef2a284d86cc3a9a9758e1c",
+   "pet_gift_5.png": "8150e92ca615be692e4f7a4fc6473d956b11662b5adc7aae12c6cd0dac8ad8cc",
+   "pet_gift_6.png": "38a9d9eee920bb1589d4e9c0a06a3525744c235f1d7cf659d7e2b1fd4f8ac6f2",
+   "pet_row_2.png": "01d2a4e1b0e1b162256fdb523e25ea4c7abfd2bb37444db694cf1ea9343d5504",
+   "pet_title.png": "e2b1f8d3671ea218ae6c943be731dbbafa746efd0c5b46942d6e453386f45ea5",
+   "pet_title_2.png": "a285be35d8469e70e0434f83e0e09159b68333927c686b3c3d14425dabf5d775",
+   "playtime_label.png": "ec079ff45edff6dbc66caa057dffa20ba62682e428fed2a53d39fa14a9126c7b",
+   "quick_complete.png": "850de8eba092ad3ca04af486b527fc3b7872d4e21d7a8025bb7db28a07c8f8c8",
+   "quick_confirm.png": "8d28a6b7fadbde4c1c90dd0a13de8cafc0389dc36ab58ef741c831d205fbc80a",
+   "redeem_btn.png": "e487d529fa7bcb0469893c5e86b05d1d7ff9e3400ced65b767aabb433fe997e8",
+   "redeem_btn_2.png": "b7035e146beee9a27163c8dc4b260182223ef0dd0d43b4bb76db4654e3302391",
+   "relist_btn.png": "11f453f8acaf5f780b36ba44d05f0c13834efc94688985e8afe7e04be1711351",
+   "relist_yes.png": "64f9d412d06811b65b614d0cf18c62e4119643bebe5b4cbd25913bbb9bdef972",
+   "row_done_2.png": "cdd03eb55279a432a41f3683f176b90e0f39c47c01f59c0897e16a3ee2e8a1a9",
+   "settings_close.png": "893e71e2fcc040d85078432d8fd01f8109f7d3929ee0baa17ad7de8b6f8acc01",
+   "settings_close_2.png": "e66898534eccd5b841df878722b28c2407d8b741b500169fed45e10d7e18a24e",
+   "settings_game.png": "43e0cf10eff7b400b61f26d24484a7bec25fe3bd1e1efbe810cdd2003ae50657",
+   "settings_game_2.png": "6f9bc75d146e9db4373912ad8bd68a63ac52235670d6eb92094e27ff59006832",
+   "settings_game_3.png": "133479d89fbd20d69eec605a97531bdfaafb044950f2bf700d69287d311bf26f",
+   "sweep_btn.png": "1324167588f3ecfc3463992af888d8236f09d23197dac44792d49e6274312736",
+   "sweep_disabled.png": "e4177754ae4dd79cb37f839026d3f131799472279da03695eb56744c32d9f62d",
+   "sweep_gift.png": "65533869cc0f9d6347f596af4bc0030fcac18c40c2febda2fd0925f3acec3d58",
+   "ticket_icon.png": "d0f2c39205487b7b45468f09b80ac4b2235ca8765bfded62a45e1d9c81a32414",
+   "title_start.png": "166a98128c007aa34b4ab16ce5551340d0337488b57ae545fe2566203147acfc"
+  },
+  "雷電": {
+   "abandon_btn.png": "5a4b3a75f7e02f3960828617ba097d10bfd4293b982f081794726a0251fa938b",
+   "abandon_confirm.png": "5a5c171b573456c0bca19c357a547659c8d7dae3758135775e1267ce2896b3ae",
+   "back_btn.png": "92d8f6dd6e3feba48651b05d1ea89e89afea79e7af25b67775e92d3d8d5314e1",
+   "back_btn_2.png": "0cd598e298493960745b43282a8f8e714c8985998f47e16c4573783e64a2a2ed",
+   "bonus_claim.png": "d0863aa84e885b86c8ceeadf32d0ab2a780f6915b0487492dabbef5316c15c9f",
+   "bonus_done.png": "2e4311d612d433e6c4f643185f9cf47a267a31b94d707712ccd263860d71f8ad",
+   "bonus_row.png": "bc201ffa59db92ae1acc4e08b5717d8da9470feea401cbdd5bdfca86591a6e88",
+   "bonus_row_2.png": "5c5e251b3077d0e0d926f295f16e250168485ec7626ca7094dcb28f309a0da6b",
+   "charsel_plus.png": "21cc0497a0a3003da801ee5222c236d3d808578d50c388019fc0a8cc0f688770",
+   "charsel_plus_2.png": "908a5d4621ff889fac3eb4eb5d0ec9c086d07b776a22de2c87b7144f331d5690",
+   "charsel_start.png": "9317c82ac0ebfd95a261ef3004758ae2bfc70bbf409d006e843ffcf3f2b1a8ae",
+   "chat_close.png": "7f589d63f94ac51b635657f80e53feae02e321b58874109ed6adc51eba0e3587",
+   "chat_fuel.png": "1c64fb538955ec4bc2b752d470d00ae563afd382fa218a1285bb7784d67fd8cc",
+   "chat_sys_tab.png": "67a48f5ac7dca130ff49a3715089485560c9dc55ccedac70cf58585b1d799743",
+   "chat_sys_tab_2.png": "2df47506861a4550998e79efe4cb515308eaabb215924e4243098dc4ff274566",
+   "claim.png": "fdb21c1ed2d55f6c590a7f7aae2dd4a2ec54df4ffca93a79d7a54dfbc2f36aa8",
+   "claim_all.png": "f6040f1061dc4c4560c9110aea937a70e4addfbc61538a40a695e923f854c507",
+   "close_x.png": "451f485fdebbcf5d02ac45a4688af31322883dc98a5fbfb31306f974b8d11715",
+   "close_x_2.png": "bb7b4abfde4ebc9098d2dd2b210147ea4d5e59dc92f68a04d23a1fe72283cf91",
+   "commission_row.png": "ee30efc82c5f1f2a6e064892ceddf1a14503a88e152ee636431b43f75fe17bba",
+   "confirm_ok.png": "4a44d0bfe2320569da8a7eee2a327341e0f8d6d13f14fd92ddc8050658415b3c",
+   "count_full.png": "2ec26648bc0eada7df3cbf65266a9c185bbc102278eff7c7488659cd3b778fea",
+   "create_party.png": "8e13e6aa2eaf603acb92f1e0c6f852317b440e3794c56c50fca9c10c36d4c6fc",
+   "daily.png": "ea00b343e115ef8863e4e277bcc24dbe731cdfee31d964eac5f6aa48474d1825",
+   "daily_panel.png": "0dc3bca950747d34a5d7f3766bba1d3f56f6d04377ddb5cb3f02366bbf5ccb0e",
+   "disconnect.png": "1276f0a584c8366e87e05daab38a8e0ac1bc2ea3ab76967b25f333280d3d72cf",
+   "done_stamp.png": "96350592f4845765dc63d2afa7275cadfb37454e20480edea38b19b328cd7b00",
+   "dungeon_panel.png": "86e5b709029154ca6ec9d897f557825937f56bccd6f64fcba7f57ccde75b35e4",
+   "dungeon_title.png": "139fdb18c4d34500e4f023c32e5c0766648cde7a2b4ea7b392e0056b9ce313dc",
+   "exchange_sell_tab.png": "445b71a0d39f98e59c9700adca037bc6e773f1e5d1dc3ec1ba8275c2b06bd4b4",
+   "exchange_sell_tab_2.png": "d88573c7fa446aa6bd1d5656cc152ceccae6b43db25fa20bf584efbea0ca6e91",
+   "exchange_sell_tab_3.png": "ffc57f234303af9c2514218d3355be99df88f9a5e889c35b48a4b19274fbb55d",
+   "fable_row.png": "555ad2881e65577edd9cabafc2d992263f9fe49708240c7d970203add0680857",
+   "follow_off.png": "35346cb27f771a05a950061b5712fd2fb75f5e7a9c6032c820ae35a840753590",
+   "follow_on.png": "3a0fba919a050116108cf9d8ccc556b69703353b4d6363fdac480785e854942f",
+   "fuel_item.png": "b93e2ad2a5624aeb218a9c21e2e068772cd787ac9a9201b59270e2ca56dc1423",
+   "hotspot.png": "c77a9d4c1d753ad84bd56c1efdb066ada7e4823237fa1a6708aabc8f7982238b",
+   "leader_star.png": "1ff99899e117f9a0164e0bc72e20efff6e42aee34234a5dade2391b1208ff601",
+   "leave_party.png": "df47f6d4bbf2a9452584856797c5d7effc543bd6319f15c536ded29025027023",
+   "lv20_tab.png": "2582b29f30c20ee38e8a713bc17f2dbae82d6d39fbcdb3cb131b17d87172dbd8",
+   "main_mark.png": "ddc67e71f44faec8addb326ad32e8ac2492f67dffa22a77cec42741d531728d2",
+   "menu_dungeon.png": "4047016a01c8ad0cf952223c8548f994f2feb47eb70a09b94ccd7ea19abdb7c5",
+   "menu_friend.png": "e55f14c4f2e98ec041412eb97657d875cf4beaa4f2d702ce12573edf085b3b20",
+   "menu_friend_2.png": "3a72ff7d9b7d31484eb429f9715bfaafc8b31b1e0c8e5b5d207e906e7d7086bf",
+   "menu_settings.png": "013c0314c2c28ed0d84d7698e0a8ebeee6577468c6afcb413eba16cbdb1a35e3",
+   "no_time_toast.png": "99e1c4473e1f3e9c1eb819f76a5eff66ff88d6f698c6672d318c4f58e5ec92f8",
+   "pet_gift.png": "36299f529f3d7e7b8ac4201230f2281164ab68fdc5bad5824e5b6cc285e4e1fc",
+   "pet_gift_2.png": "a4d3c0a6db8f5d6589162a70819f46d38eb5fa77767ba1339a1557c364c12eda",
+   "pet_title.png": "a9cd9f4f621a1f8ea30e2cc339f81e04ccf977dd4df8cd862d5e568abf6c4f1d",
+   "playtime_label.png": "e236d191e769ab9d5833edca2c6140584e8e6fa4213c58a10ca2fd5d8b2f3aae",
+   "quick_complete.png": "cec74e605c7527b1f90478280f289cb066a2bc837fb676913d2e5eb7aa85206d",
+   "quick_confirm.png": "25628e64a46c1652e18c2f70d03d6916127773dfa83f6532b396b4896d336406",
+   "redeem_btn.png": "fcf7dbc02e5b1e9db1098bea12f92604e7cccfd585dbe4291fa7d2b155ae9fb6",
+   "relist_btn.png": "2b219dceb4054c0f1d60055779759ac27b1bc25cdccba93df9f6e838058e183c",
+   "relist_yes.png": "71559f663bd7c8d55ea48c5a346bdbb0ca1c4a556ccb9a4d2a03ef0c33590b07",
+   "row_done.png": "799a15dcdd728352f31d02db36882ea1f8724848dfc2d91ad86ddf76b23743f0",
+   "settings_close.png": "fdbd03d93a6b11ee8190bd5f24d425fa17cdf9d2dd85b8a93bf9b8ec75391172",
+   "settings_game.png": "0657eb8a3122b56f2245765df06e68b16df13d665bcb9eea075f28ba9294f236",
+   "sweep_btn.png": "6b536547567cd01a16bf749d2914547b4fe2c076dca3d8df27c64c9d81f6f4f8",
+   "sweep_disabled.png": "a44259a5b8df8e87a7d35194d5a4ad146bc0768df457e661cce009d72e82c3fa",
+   "sweep_gift.png": "cec792ccfe1c6730c257fa1abc17601dc80f0b5ec71669fdfa4280ce6eaa374b",
+   "ticket_icon.png": "b30123016c11a2cc8a408e41f9720f9292c55040eec864fa9dfb26fbfb6c04ba",
+   "title_start.png": "435baa581ce703b1d1f1dabcfeb6677713c1f11e7626c11b2aa4771eccfc8df8"
+  }
+ },
+ "points": {
+  "官方": {
+   "abandon_ok": [
+    486,
+    332
+   ],
+   "bag_btn": [
+    602,
+    79
+   ],
+   "bag_fav_tab": [
+    477,
+    73
+   ],
+   "char_slot_1": [
+    73,
+    147
+   ],
+   "char_slot_2": [
+    72,
+    206
+   ],
+   "char_slot_3": [
+    68,
+    268
+   ],
+   "chat_open": [
+    129,
+    442
+   ],
+   "daily_btn": [
+    491,
+    82
+   ],
+   "exchange_slot": [
+    494,
+    450
+   ],
+   "more_btn": [
+    665,
+    81
+   ],
+   "offsets": {
+    "pet_row_2.png": [
+     484,
+     34
+    ]
+   },
+   "pet_slots": [
+    null,
+    [
+     483,
+     139
+    ],
+    [
+     618,
+     139
+    ],
+    [
+     348,
+     241
+    ],
+    [
+     485,
+     241
+    ],
+    [
+     620,
+     245
+    ],
+    [
+     353,
+     346
+    ],
+    [
+     483,
+     354
+    ],
+    null
+   ],
+   "pet_tab": [
+    754,
+    295
+   ],
+   "quick_confirm_ok": [
+    488,
+    333
+   ],
+   "quick_no_remind": [
+    369,
+    283
+   ],
+   "safe_click": [
+    401,
+    438
+   ],
+   "scroll_point": [
+    419,
+    313
+   ],
+   "scroll_point_alt": [
+    299,
+    327
+   ],
+   "settings_btn": [
+    593,
+    251
+   ],
+   "ticket_slot": [
+    554,
+    402
+   ]
+  },
+  "雷電": {
+   "abandon_ok": [
+    491,
+    287
+   ],
+   "bag_btn": [
+    611,
+    43
+   ],
+   "bag_fav_tab": [
+    482,
+    35
+   ],
+   "char_slot_1": [
+    64,
+    109
+   ],
+   "char_slot_2": [
+    66,
+    169
+   ],
+   "char_slot_3": [
+    60,
+    237
+   ],
+   "chat_open": [
+    120,
+    410
+   ],
+   "dungeon_btn": [
+    599,
+    104
+   ],
+   "exchange_slot": [
+    505,
+    417
+   ],
+   "friend_btn": [
+    532,
+    162
+   ],
+   "more_btn": [
+    670,
+    40
+   ],
+   "offsets": {
+    "commission_row.png": [
+     511,
+     42
+    ]
+   },
+   "party_apply_flag": [
+    388,
+    182
+   ],
+   "party_avatar": [
+    46,
+    53
+   ],
+   "party_btn": [
+    547,
+    39
+   ],
+   "party_fav_tab": [
+    553,
+    44
+   ],
+   "party_friend_first": [
+    507,
+    107
+   ],
+   "pet_slot": [
+    506,
+    366
+   ],
+   "pet_slots": [
+    null,
+    [
+     487,
+     98
+    ],
+    [
+     627,
+     95
+    ],
+    [
+     350,
+     203
+    ],
+    [
+     488,
+     205
+    ],
+    [
+     622,
+     205
+    ],
+    [
+     355,
+     317
+    ],
+    [
+     489,
+     310
+    ],
+    null
+   ],
+   "pet_tab": [
+    771,
+    256
+   ],
+   "quick_confirm_ok": [
+    486,
+    291
+   ],
+   "quick_no_remind": [
+    370,
+    245
+   ],
+   "safe_click": [
+    397,
+    416
+   ],
+   "settings_btn": [
+    536,
+    214
+   ],
+   "ticket_slot": [
+    559,
+    366
+   ]
   }
  }
 }
