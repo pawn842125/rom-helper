@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.06l"
+__version__ = "2026.11.06m"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
