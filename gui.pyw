@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.05n"
+__version__ = "2026.11.06l"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -61,6 +61,47 @@ def _missing_package(err):
                                  f"\"{console_py}\" -m pip install " + " ".join(pkgs))
     raise SystemExit(1)
 
+
+def _check_files_beside():
+    """gui.pyw 旁邊一定要有 rom_daily.py、rom_party.py。
+    朋友常在壓縮檔裡直接雙擊 gui.pyw：Windows 只把這一個檔案拿到暫存資料夾執行，
+    旁邊的檔案都不在 → 原本會跳看不懂的英文錯誤（No module named 'rom_daily'）。這裡改講白話。"""
+    import tempfile
+    here = os.path.dirname(os.path.abspath(__file__))
+    missing = [f for f in ("rom_daily.py", "rom_party.py") if not os.path.isfile(os.path.join(here, f))]
+    if not missing:
+        return
+    low = here.lower()
+    try:
+        tmp = os.path.normcase(os.path.abspath(tempfile.gettempdir()))
+    except Exception:
+        tmp = ""
+    in_zip = ".zip" in low or (tmp and os.path.normcase(here).startswith(tmp))
+    r = tk.Tk(); r.withdraw()
+    if in_zip:
+        messagebox.showerror(
+            "ROM 日常助手：請先解壓縮",
+            "你是在壓縮檔（.zip）裡面直接打開 gui.pyw 的，\n"
+            "這樣 Windows 只會拿出這一個檔案，其他程式檔都不在，所以開不起來。\n\n"
+            "請這樣做：\n"
+            "1. 關掉這個視窗\n"
+            "2. 在下載的 zip 檔上按右鍵 →「解壓縮全部」\n"
+            "   （Windows 11 可能要先按「顯示其他選項」）\n"
+            "3. 打開解壓縮出來的資料夾，找到 gui.pyw、rom_daily.py 那一層\n"
+            "4. 在那裡雙擊 gui.pyw\n\n"
+            "之後都從解壓縮出來的資料夾開，zip 檔可以刪掉。")
+    else:
+        messagebox.showerror(
+            "ROM 日常助手：缺少程式檔",
+            "gui.pyw 旁邊找不到：" + "、".join(missing) + "\n\n"
+            f"目前的資料夾：\n{here}\n\n"
+            "這幾個檔案要放在同一個資料夾裡：\n"
+            "gui.pyw、rom_daily.py、rom_party.py、account_switch.pyw\n\n"
+            "請把下載的整包重新解壓縮，或把缺的檔案放回這個資料夾。")
+    raise SystemExit(1)
+
+
+_check_files_beside()
 
 try:
     import cv2
@@ -154,8 +195,8 @@ CALIB_GROUPS = [
          ("grid",),
          ("tmpl", "pet_gift.png", "禮物圖示（九宮格模式不需要，只是多一層確認）", (36, 36), "btn", False),
      ]},
-    {"title": "副本掃蕩券",
-     "how": "快捷列 F2 放副本掃蕩券；用一張讓禮物視窗跳出來再抓（先抓好再關掉視窗）",
+    {"title": "時空矩陣掃蕩券",
+     "how": "快捷列 F2 放時空矩陣掃蕩券；用一張讓禮物視窗跳出來再抓（先抓好再關掉視窗）",
      "items": [
          ("tmpl", "ticket_icon.png", "快捷列 F2 上的掃蕩券圖示（只框圖示，不要框到下面的數字；沒有券的角色不會按）",
           (34, 26), "btn", "feat"),
@@ -163,15 +204,17 @@ CALIB_GROUPS = [
          ("tmpl", "sweep_gift.png", "用掃蕩券後跳出的視窗，上方紅色金邊的禮物盒", (60, 50), "btn", "feat"),
      ]},
     {"title": "副本掃蕩",
-     "how": "按 U（雷電：先點上方「更多」展開選單 → 再點選單裡的「副本」）→ 左邊清單找到狂想寓言點進去 → 上方選 Lv.20",
+     "how": "按 U（雷電：先點上方「更多」展開選單 → 再點選單裡的「副本」）→ 左邊清單找到狂想寓言點進去 → 上方等級列拖到最左（每個帳號掃哪一級在控制台「各帳號設定」選）",
      "items": [
          ("point", "more_btn", "第一下：主畫面上方「更多」按鈕（跟組隊、兌換那兩組共用，改一處全部跟著變）", "nokey"),
          ("point", "dungeon_btn", "第二下：選單裡的「副本」（先在遊戲裡手動點開「更多」，選單展開後再抓；不是抓「更多」本身）", "nokey"),
          ("tmpl", "menu_dungeon.png", "選單裡「副本」的圖示（選用，建議抓：不同帳號「更多」選單的項目數量不同，位置會移動；有抓就改用找的。先手動點開「更多」，框住圖示和下面的字）", (60, 60), "btn", False),
          ("tmpl", "dungeon_panel.png", "副本面板左上角「所有副本」字樣（剛開面板時抓）", (76, 22), "btn", True),
          ("tmpl", "fable_row.png", "左邊清單「【狂想寓言】」那幾個字", (84, 20), "btn", True),
+         ("tmpl", "cake_row.png", "左邊清單「【蛋糕保衛戰】」那幾個字（選用：只用來確認副本面板有打開）", (96, 20), "btn", False),
          ("tmpl", "dungeon_title.png", "點進去後右上「狂想寓言」標題", (76, 22), "btn", False),
          ("point", "dungeon_first_tab", "分頁列拖到最左後，第一格（Lv.20）六角形的中心", True),
+         ("point", "dungeon_last_tab", "分頁列拖到最左後，最右邊那格（VII Lv.80）六角形的中心（選用：要掃 Lv.20 以外的等級建議抓，程式用它算每格間距）", False),
          ("tmpl", "lv20_tab.png", "等級列 Lv.20 那一格（選用；程式主要靠上面那個位置）", (56, 60), "btn", False),
          ("tmpl", "sweep_btn.png", "藍色「掃蕩」按鈕——只框「掃蕩」兩個字，不要整顆按鈕（旁邊開組、匹配同款會混）", (52, 24), "btn", True),
          ("tmpl", "sweep_disabled.png", "灰色「掃蕩」按鈕（不能按的狀態）", (100, 34), "btn", False),
@@ -243,6 +286,8 @@ CALIB_GROUPS = [
          ("point", "party_fav_tab", "按 O：好友面板的 ❤ 分頁", True),
          ("point", "party_friend_first", "❤ 分頁裡第一個好友的頭像", True),
          ("point", "party_apply_flag", "點好友頭像後小視窗裡的旗子", True),
+         ("tmpl", "fav_tab_on.png", "好友面板切到 ❤ 分頁時：愛心＋底下那條藍色底線（被選中的樣子；燃料輪替一定要，組隊建議抓）", (52, 44), "btn", False),
+         ("tmpl", "friend_close.png", "好友面板右上角的 ✕（只框 ✕；燃料輪替一定要，組隊建議抓）", (30, 30), "btn", False),
      ]},
     {"title": "進階（通常不用動）",
      "how": "這些已經有內建預設值，跑得正常就不用碰",
@@ -283,6 +328,11 @@ SETTINGS = [
     ("remember_done",    "記住今天做完的任務、換過的序號（早上 6 點重置）", bool, True),
     ("relist_max",       "一鍵上架最多按幾次", int, 20),
 ]
+
+
+# 設定分頁裡收在「進階」的項目（通常不用動；其他的放「常用」）
+ADVANCED_SETTINGS = {"window_title", "work_w", "work_h", "pet_mode", "match_threshold",
+                     "pet_gift_min_x", "row_safe_bottom", "adaptive_wait"}
 
 
 def load_cfg():
@@ -327,8 +377,47 @@ class QueueWriter:
         pass
 
 
+class Tooltip:
+    """滑鼠停在元件上一下，旁邊浮出說明；移開就消失。長說明放這裡，畫面就不會被撐寬。"""
+
+    def __init__(self, widget, text, delay=400):
+        self.widget, self.text, self.delay = widget, text, delay
+        self.tip = None
+        self.job = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, _=None):
+        self._cancel()
+        self.job = self.widget.after(self.delay, self._show)
+
+    def _cancel(self):
+        if self.job:
+            self.widget.after_cancel(self.job)
+            self.job = None
+
+    def _show(self):
+        if self.tip:
+            return
+        x = self.widget.winfo_rootx() + 10
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.overrideredirect(True)
+        self.tip.attributes("-topmost", True)
+        self.tip.geometry(f"+{x}+{y}")
+        tk.Label(self.tip, text=self.text, justify="left", background="#ffffe0", foreground="#333",
+                 relief="solid", borderwidth=1, wraplength=420, padx=6, pady=4).pack()
+
+    def _hide(self, _=None):
+        self._cancel()
+        if self.tip:
+            self.tip.destroy()
+            self.tip = None
+
+
 class ScrollFrame(ttk.Frame):
-    """可以捲動的容器，校正分頁項目多才放得下。"""
+    """可以捲動的容器（校正、設定分頁）。內容放在 .inner 裡。"""
 
     def __init__(self, master):
         super().__init__(master)
@@ -342,8 +431,27 @@ class ScrollFrame(ttk.Frame):
         canvas.configure(yscrollcommand=bar.set)
         canvas.pack(side="left", fill="both", expand=True)
         bar.pack(side="right", fill="y")
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(-1 * (e.delta // 120), "units"))
+        self.canvas = canvas
+        # 滾輪：滑鼠停在哪個捲動框裡就捲哪個（校正、設定都有捲動框，以前後建的會搶走滾輪）
+        if not ScrollFrame._wheel_bound:
+            ScrollFrame._wheel_bound = True
+            canvas.bind_all("<MouseWheel>", ScrollFrame._on_wheel)
+
+    _wheel_bound = False
+
+    @staticmethod
+    def _on_wheel(e):
+        try:
+            w = e.widget.winfo_containing(e.x_root, e.y_root)
+        except Exception:
+            return
+        while w is not None:
+            if isinstance(w, tk.Text):               # 紀錄框自己會捲，不要連外面一起捲
+                return
+            if isinstance(w, ScrollFrame):
+                w.canvas.yview_scroll(-1 * (e.delta // 120), "units")
+                return
+            w = getattr(w, "master", None)
 
 
 # ---------------------------------------------------------------------------
@@ -634,24 +742,23 @@ class App:
         nb = ttk.Notebook(root)
         nb.pack(fill="both", expand=True, padx=6, pady=6)
 
+        # 分頁順序（使用者指定）：控制台、燃料輪替、組隊輪替，校正和設定放最後（一鍵上架併進控制台的勾選）
         self.tab_main = ttk.Frame(nb)
         nb.add(self.tab_main, text="  控制台  ")
+        self.tab_fuel = ttk.Frame(nb)
+        nb.add(self.tab_fuel, text="  燃料輪替  ")
+        self.tab_party = ttk.Frame(nb)
+        nb.add(self.tab_party, text="  組隊輪替  ")
         calib_holder = ScrollFrame(nb)
         nb.add(calib_holder, text="  校正  ")
         self.tab_calib = calib_holder.inner
-        self.tab_party = ttk.Frame(nb)
-        nb.add(self.tab_party, text="  組隊輪替  ")
-        self.tab_relist = ttk.Frame(nb)
-        nb.add(self.tab_relist, text="  一鍵上架  ")
-        self.tab_fuel = ttk.Frame(nb)
-        nb.add(self.tab_fuel, text="  燃料輪替  ")
-        self.tab_set = ttk.Frame(nb)
-        nb.add(self.tab_set, text="  設定  ")
+        set_holder = ScrollFrame(nb)
+        nb.add(set_holder, text="  設定  ")
+        self.tab_set = set_holder.inner
 
         self._build_main()
         self._build_calib()
         self._build_party()
-        self._build_relist()
         self._build_fuel()
         self._build_settings()
 
@@ -737,13 +844,21 @@ class App:
         top = ttk.LabelFrame(f, text="要做什麼", padding=8)
         top.pack(fill="x", padx=8, pady=(8, 4))
         self.task_vars = {}
-        for i, key in enumerate(rd.MAIN_TASKS):         # 一鍵上架在自己的分頁
+        per_row = 4                                     # 每排 4 個，任務變多也只是多一排，不會把視窗撐寬
+        tips = {"relist": "把交易所裡過期的貨物重新上架：點快捷列第 1 格（交易所）→「我要出售」→ "
+                          "一直按「一鍵上架」→「是」，直到按鈕消失（最多按幾次在設定頁改）。\n"
+                          "預設不勾，要上架時再勾；不會記成今天做過，一天可以跑很多次。\n"
+                          "第一次用先到「校正 → 一鍵上架」把模板和位置抓好。"}
+        for i, key in enumerate(rd.MAIN_TASKS):
             var = tk.BooleanVar(value=key in rd.DEFAULT_ON)
-            ttk.Checkbutton(top, text=rd.TASK_LABELS[key], variable=var).grid(
-                row=0, column=i, padx=(0, 14), sticky="w")
+            cb = ttk.Checkbutton(top, text=rd.TASK_LABELS[key], variable=var)
+            cb.grid(row=i // per_row, column=i % per_row, padx=(0, 18), pady=1, sticky="w")
+            if key in tips:
+                Tooltip(cb, tips[key])
             self.task_vars[key] = var
         code_row = ttk.Frame(top)
-        code_row.grid(row=1, column=0, columnspan=len(rd.MAIN_TASKS), sticky="w", pady=(6, 0))
+        code_row.grid(row=(len(rd.MAIN_TASKS) - 1) // per_row + 1, column=0, columnspan=per_row,
+                      sticky="w", pady=(6, 0))
         ttk.Label(code_row, text="兌換序號：").pack(side="left")
         self.redeem_var = tk.StringVar(value=load_shared().get("redeem_code", ""))
         ttk.Entry(code_row, textvariable=self.redeem_var, width=24).pack(side="left")
@@ -757,18 +872,33 @@ class App:
         self.win_sel_lbl = ttk.Label(win, text="目前：全部", foreground="#1a5fb4")
         self.win_sel_lbl.pack(side="left", padx=12)
         ttk.Button(win, text="改回全部", command=self.select_all_windows).pack(side="left")
+        acc_btn = ttk.Button(win, text="各帳號設定…", command=self.account_settings)
+        acc_btn.pack(side="right")
+        Tooltip(acc_btn, "每個帳號自己的設定（例如副本掃哪一級）。每個帳號一列，會記住。")
 
         multi = ttk.LabelFrame(f, text="多開管理", padding=8)
         multi.pack(fill="x", padx=8, pady=4)
-        ttk.Button(multi, text="檢查開了哪些", command=self.check_instances).pack(side="left")
-        ttk.Button(multi, text="補開沒開的", command=self.open_missing).pack(side="left", padx=8)
-        ttk.Button(multi, text="標示視窗編號", command=self.show_numbers).pack(side="left")
-        ttk.Button(multi, text="自動排列視窗", command=self.arrange).pack(side="left", padx=8)
-        ttk.Button(multi, text="強制關閉…", command=self.kill_dialog).pack(side="left")
-        ttk.Label(multi, text="欄數：").pack(side="left")
+        m1 = ttk.Frame(multi)
+        m1.pack(anchor="w")
+        ttk.Button(m1, text="檢查開了哪些", command=self.check_instances).pack(side="left")
+        ttk.Button(m1, text="補開沒開的", command=self.open_missing).pack(side="left", padx=8)
+        ttk.Button(m1, text="強制關閉…", command=self.kill_dialog).pack(side="left")
+        m2 = ttk.Frame(multi)
+        m2.pack(anchor="w", pady=(6, 0))
+        ttk.Button(m2, text="標示視窗編號", command=self.show_numbers).pack(side="left")
+        arr = ttk.Button(m2, text="自動排列視窗", command=self.arrange)
+        arr.pack(side="left", padx=8)
+        cols_lbl = ttk.Label(m2, text="欄數：")
+        cols_lbl.pack(side="left")
         self.arrange_cols = tk.StringVar(value="0")
-        ttk.Spinbox(multi, from_=0, to=8, width=3, textvariable=self.arrange_cols).pack(side="left")
-        ttk.Label(multi, text="（0=自動挑視窗最大的排法；視窗會保持遊戲原本比例；排好後視窗編號=資料夾編號）", foreground="#666").pack(side="left", padx=6)
+        cols_box = ttk.Spinbox(m2, from_=0, to=8, width=3, textvariable=self.arrange_cols)
+        cols_box.pack(side="left")
+        ttk.Label(m2, text="ⓘ", foreground="#1a5fb4").pack(side="left", padx=(4, 0))
+        tip = ("自動排列視窗的欄數。0 = 自動挑視窗最大的排法。\n"
+               "視窗會保持遊戲原本比例；排好後視窗編號 = 資料夾編號。\n"
+               "跑到螢幕外面、叫不出來的視窗，按這個也會被拉回來。")
+        for w in (arr, cols_lbl, cols_box, m2.winfo_children()[-1]):
+            Tooltip(w, tip)
 
         bar = ttk.Frame(f, padding=(8, 4))
         bar.pack(fill="x")
@@ -1000,6 +1130,68 @@ class App:
     def select_all_windows(self):
         self.selected_windows = None
         self.win_sel_lbl.configure(text="目前：全部")
+
+    def account_settings(self):
+        """各帳號設定：每個開著的帳號一列，選副本掃哪一級。存在共用設定 dungeon_levels（用帳號名字記）。"""
+        hwnds = rd.find_windows()
+        if not hwnds:
+            messagebox.showinfo("找不到視窗", "目前沒有遊戲視窗。先把要設定的帳號開起來。")
+            return
+        rows = [(h, rd.kind_of(h), rd.window_label(h), rd.account_name(h)) for h in hwnds]
+        levels = [rd.dungeon_level_name(n) for n in range(1, len(rd.DUNGEON_LEVELS) + 1)]
+        saved = load_shared().get("dungeon_levels", {})
+
+        win = tk.Toplevel(self.root)
+        win.withdraw()
+        win.title("各帳號設定")
+        win.transient(self.root)
+        body = ttk.Frame(win, padding=12)
+        body.pack(fill="both", expand=True)
+        ttk.Label(body, text="每個帳號自己的設定，會記住。沒開的帳號不會列出來，之前設好的會保留。\n"
+                             "副本掃蕩：選了 Lv.20 以外的，建議先到「校正 → 副本掃蕩」抓「最右邊那格（VII）」。",
+                  foreground="#666", justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        for c, text in enumerate(("種類", "名稱", "副本掃哪一級", "")):
+            ttk.Label(body, text=text, font=("Microsoft JhengHei", 9, "bold")).grid(
+                row=1, column=c, sticky="w", padx=6)
+        vars_ = []
+        for i, (h, kind, name, key) in enumerate(rows, 2):
+            ttk.Label(body, text=kind).grid(row=i, column=0, sticky="w", padx=6, pady=2)
+            ttk.Label(body, text=name).grid(row=i, column=1, sticky="w", padx=6)
+            try:
+                n = max(1, min(len(levels), int(saved.get(key, 1))))
+            except (TypeError, ValueError):
+                n = 1
+            v = tk.StringVar(value=levels[n - 1])
+            ttk.Combobox(body, textvariable=v, values=levels, state="readonly", width=14).grid(
+                row=i, column=2, sticky="w", padx=6)
+            vars_.append((key, v))
+            ttk.Button(body, text="認一下", width=7,
+                       command=lambda h=h: self.peek_window(h, win)).grid(row=i, column=3, padx=6)
+
+        def ok():
+            shared = load_shared()
+            memo = dict(shared.get("dungeon_levels", {}))
+            for key, v in vars_:
+                memo[key] = levels.index(v.get()) + 1
+            shared["dungeon_levels"] = memo
+            save_shared(shared)
+            self.log("各帳號設定已儲存：\n" + "".join(
+                f"  {name}：副本掃 {v.get()}\n" for (h, kind, name, key), (_, v) in zip(rows, vars_)), "ok")
+            win.destroy()
+
+        bar = ttk.Frame(body)
+        bar.grid(row=len(rows) + 2, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        ttk.Button(bar, text="儲存", command=ok).pack(side="left", padx=4)
+        ttk.Button(bar, text="取消", command=win.destroy).pack(side="left", padx=4)
+
+        win.update_idletasks()
+        ww, wh = win.winfo_reqwidth(), win.winfo_reqheight()
+        rx, ry = self.root.winfo_rootx(), self.root.winfo_rooty()
+        rw, rh = self.root.winfo_width(), self.root.winfo_height()
+        win.geometry(f"{ww}x{wh}+{rx + max(0, (rw - ww) // 2)}+{ry + max(0, (rh - wh) // 2)}")
+        win.deiconify()
+        win.lift()
+        win.focus_force()
 
     def pick_windows(self):
         """跳出清單：列出目前每個視窗是哪一份，勾要跑的。"""
@@ -1380,7 +1572,7 @@ class App:
             self.log(f"視窗 {n} 是{kind}（{rd.window_label(hwnds[n - 1])}），"
                      f"校正頁已切到「{kind}」那一套，抓的東西會存到{kind}。\n", "head")
         self.fixed_hwnd = hwnds[n - 1]
-        self.fixed_orig = rd.get_rect(self.fixed_hwnd)
+        self.fixed_orig = rd.remember_place(self.fixed_hwnd)
         rd.normalize_window(self.fixed_hwnd)
         self.log(f"工作區 {rd.AREA_W}x{rd.AREA_H}"
                  f"{'（遊戲畫面子視窗）' if rd.USE_RENDER_CHILD else '（整個視窗）'}\n")
@@ -1391,7 +1583,7 @@ class App:
     def unfix_window(self):
         if self.fixed_hwnd and self.fixed_orig:
             try:
-                rd.move_window(self.fixed_hwnd, *self.fixed_orig)
+                rd.restore_place(self.fixed_hwnd, self.fixed_orig)
             except Exception:
                 pass
         self.fixed_hwnd = None
@@ -1651,38 +1843,13 @@ class App:
     # ==================================================================
     # 組隊輪替
     # ==================================================================
-    def _build_relist(self):
-        f = self.tab_relist
-        ttk.Label(f, text="把交易所裡過期的貨物重新上架。程式會點快捷列第 1 格（交易所）→「我要出售」→ "
-                          "一直按「一鍵上架」→「是」，直到按鈕消失（最多按 "
-                          f"{rd.RELIST_MAX} 次，可到設定頁改）。\n"
-                          "跑的是「控制台」選的視窗。第一次用先到「校正 → 一鍵上架」把模板和位置抓好。",
-                  foreground="#666", wraplength=660, justify="left").pack(fill="x", padx=8, pady=(8, 4))
-        bar = ttk.Frame(f, padding=(8, 4))
-        bar.pack(fill="x")
-        self.btn_relist = ttk.Button(bar, text="開始一鍵上架", width=14, command=self.relist_start)
-        self.btn_relist.pack(side="left")
-        self.btn_relist_stop = ttk.Button(bar, text="停止", width=8, command=self.stop, state="disabled")
-        self.btn_relist_stop.pack(side="left", padx=6)
-        ttk.Button(bar, text="清除紀錄",
-                   command=lambda: self.relist_log.delete("1.0", "end")).pack(side="right")
-        frame = ttk.Frame(f, padding=(8, 0, 8, 8))
-        frame.pack(fill="both", expand=True)
-        self.relist_log = tk.Text(frame, wrap="word", font=("Consolas", 10),
-                                  bg="#1e1e1e", fg="#dcdcdc", insertbackground="#dcdcdc")
-        sb = ttk.Scrollbar(frame, command=self.relist_log.yview)
-        self.relist_log.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.relist_log.pack(side="left", fill="both", expand=True)
-        for tag, color in (("ok", "#6ac46a"), ("bad", "#e06c6c"),
-                           ("head", "#6cb6ff"), ("warn", "#e0b060")):
-            self.relist_log.tag_config(tag, foreground=color)
-
     def _build_fuel(self):
         f = self.tab_fuel
-        ttk.Label(f, text="鐵匠打怪掉燃料，每隻角色每天 2000。每個帳號依序：第 2 隻 → 第 3 隻（小號，燃料滿 2000 離隊）"
-                          "→ 第 1 隻（本尊，戰鬥次數 10000 才離隊），都是進打手的隊伍「跟隨」吸。\n"
-                          "事前準備：三隻都換好鐵匠、燃料設成包包愛心、好友 ❤ 裡只放打手。"
+        ttk.Label(f, text="鐵匠打怪掉燃料，每隻角色每天 2000。先按「燃料角色設定…」選打手、每個帳號勾要吸的角色（不勾的帳號不會被碰），再按開始。"
+                          "依序：第 2 隻 → 第 3 隻（小號，燃料滿 2000 離隊）→ 本尊（戰鬥次數 10000 才離隊），"
+                          "都是進打手的隊伍「跟隨」吸；沒勾本尊的帳號吸完會換回本尊。\n"
+                          "不輪替、但也待在同一隊掛著的帳號會佔隊伍位置：「同時最多幾隻在吸」要設成剩下的空位。\n"
+                          "事前準備：要吸的角色都換好鐵匠、燃料設成包包愛心、好友 ❤ 裡只放打手。"
                           "打手要開「自動接受入隊」。第一次用先到「校正 → 燃料輪替」抓好。\n"
                           "跑的時候程式會一直切換視窗，電腦不能做別的事；按 F12 停止。",
                   foreground="#666", wraplength=660, justify="left").pack(fill="x", padx=8, pady=(8, 4))
@@ -1698,7 +1865,10 @@ class App:
             self.fuel_vars[key] = var
         bar = ttk.Frame(f, padding=(8, 4))
         bar.pack(fill="x")
-        self.btn_fuel = ttk.Button(bar, text="開始燃料輪替（選打手和帳號）", command=self.fuel_start)
+        self.btn_fuel_set = ttk.Button(bar, text="燃料角色設定…", command=self.fuel_settings)
+        self.btn_fuel_set.pack(side="left", padx=(0, 8))
+        Tooltip(self.btn_fuel_set, "選打手、每個帳號勾要吸燃料的角色，按「儲存」存起來（不會開始跑）。")
+        self.btn_fuel = ttk.Button(bar, text="開始燃料輪替", command=self.fuel_start)
         self.btn_fuel.pack(side="left")
         self.btn_fuel_stop = ttk.Button(bar, text="停止", width=8, command=self.stop, state="disabled")
         self.btn_fuel_stop.pack(side="left", padx=6)
@@ -1727,6 +1897,26 @@ class App:
         rp._load()
         return True
 
+    def fuel_settings(self):
+        """「燃料角色設定…」：打開選擇視窗，按「儲存」只存起來，不會開始跑。"""
+        def saved(leader, accounts, slots):
+            self.log("燃料角色設定已儲存，按「開始燃料輪替」就會照這個跑。\n", "ok", target=self.fuel_log)
+        self.party_pick(saved, fuel=True, ok_text="儲存")
+
+    def fuel_saved_plan(self):
+        """照存好的燃料設定，對應到現在開著的視窗。
+        回傳 (打手 hwnd 或 None, [帳號 hwnd], {hwnd: 角色}, [存了但沒開的名字])；從來沒設定過回傳 None。"""
+        shared = load_shared()
+        memo = {k: tuple(v) for k, v in (shared.get("fuel_slots") or {}).items() if v}
+        if not memo:
+            return None
+        by_name = {rd.window_label(h): h for h in rd.find_windows()}
+        leader_name = shared.get("fuel_leader_name") or ""
+        leader = by_name.get(leader_name)
+        slots = {by_name[n]: sl for n, sl in memo.items() if n in by_name and n != leader_name}
+        gone = [n for n in memo if n not in by_name]
+        return leader, list(slots), slots, gone
+
     def fuel_start(self):
         if not self._idle("開始"):
             return
@@ -1735,11 +1925,32 @@ class App:
         if self.fixed_hwnd:
             self.unfix_window()
 
-        def go(leader, accounts):
-            self.fuel_log.delete("1.0", "end")
-            self.start(lambda: rp.fuel_run(leader=leader, accounts=accounts),
+        def go(leader, accounts, slots):
+            self.start(lambda: rp.fuel_run(leader=leader, accounts=accounts, slots=slots),
                        "燃料輪替中，請勿操作滑鼠鍵盤", target=self.fuel_log)
-        self.party_pick(go)
+
+        self.fuel_log.delete("1.0", "end")
+        plan = self.fuel_saved_plan()
+        if plan is None:                              # 還沒設定過：先設定，按確定就開始
+            messagebox.showinfo("還沒設定", "還沒設定要吸燃料的角色，先設定一次（之後按開始就會直接照這個跑）。")
+            self.party_pick(go, fuel=True)
+            return
+        leader, accounts, slots, gone = plan
+        if not accounts:
+            messagebox.showinfo("存好的帳號都沒開",
+                                "燃料角色設定裡勾的帳號，這次一個都沒開：\n" + "、".join(gone)
+                                + "\n\n請把遊戲開起來，或按「燃料角色設定…」重新勾。")
+            return
+        label = {2: "第2隻", 3: "第3隻", 1: "本尊"}
+        shared = load_shared()
+        leader_name = shared.get("fuel_leader_name") or ""
+        self.log("照「燃料角色設定」開始：打手 " + (leader_name or "不在這台電腦")
+                 + ("（⚠ 打手的視窗這次沒開）" if leader_name and not leader else "") + "\n" + "".join(
+                     f"  {rd.window_label(h)}：吸 " + "、".join(label[n] for n in (2, 3, 1) if n in sl)
+                     + ("（吸完換回本尊）" if 1 not in sl else "") + "\n" for h, sl in slots.items())
+                 + ("  這次沒開、跳過：" + "、".join(gone) + "\n" if gone else ""),
+                 "head", target=self.fuel_log)
+        go(leader, accounts, slots)
 
     def fuel_clear(self):
         if not messagebox.askyesno("清除今天的燃料紀錄",
@@ -1750,14 +1961,6 @@ class App:
         st["done"] = {k: v for k, v in st["done"].items() if not k.startswith("fuel|")}
         rd._save_state(st)
         self.log("已清除今天的燃料紀錄。\n", "head")
-
-    def relist_start(self):
-        windows = self.parse_windows()
-        if self.fixed_hwnd:
-            self.unfix_window()
-        self.relist_log.delete("1.0", "end")
-        self.start(lambda: rd.cmd_run(tasks={"relist"}, windows=windows),
-                   "一鍵上架中，請勿操作滑鼠鍵盤", target=self.relist_log)
 
     def clear_today(self):
         if messagebox.askyesno("清除今天的完成紀錄",
@@ -1866,8 +2069,12 @@ class App:
                    "組隊輪替中（只巡一輪）" if once else "組隊輪替中，請勿操作滑鼠鍵盤",
                    target=self.party_log)
 
-    def party_pick(self, then):
-        """彈出視窗選隊長和小號。記名字（不是編號），下次自動勾好；按確定才呼叫 then(隊長 hwnd 或 None, [小號 hwnd])。"""
+    def party_pick(self, then, fuel=False, ok_text="確定，開始"):
+        """彈出視窗選隊長和小號。記名字（不是編號），下次自動勾好；按確定才呼叫 then(隊長 hwnd 或 None, [小號 hwnd])。
+
+        fuel=True（燃料輪替）：每個帳號改成三個勾「第2隻、第3隻、本尊」，都不勾 = 這個帳號不輪替。
+        跟組隊輪替分開記（shared 的 fuel_leader_name、fuel_slots），呼叫 then(打手, [帳號], {帳號: (角色…)})。
+        """
         hwnds = rd.find_windows()
         if not hwnds:
             messagebox.showinfo("找不到視窗", "目前沒有遊戲視窗。")
@@ -1884,65 +2091,109 @@ class App:
             nums = shared.get("party_alt_windows") or []
             last_alts = ([names[n - 1] for n in nums if 1 <= n <= len(names)] if nums
                          else [x for x in names if x != last_leader])
+        SLOTS = ((2, "第2隻"), (3, "第3隻"), (1, "本尊"))
+        last_slots = {}
+        if fuel:
+            last_leader = shared.get("fuel_leader_name", last_leader) or ""
+            last_slots = {k: list(v) for k, v in (shared.get("fuel_slots") or {}).items()}
+            last_alts = [k for k, v in last_slots.items() if v]
+        heads = (("種類", "名稱", "打手") + tuple(t for _, t in SLOTS) + ("",)) if fuel \
+            else ("種類", "名稱", "隊長", "小號", "")
+        ncol = len(heads)
 
         win = tk.Toplevel(self.root)
         win.withdraw()
-        win.title("選隊長和小號")
+        win.title("選打手和要吸燃料的角色" if fuel else "選隊長和小號")
         win.transient(self.root)
         body = ttk.Frame(win, padding=12)
         body.pack(fill="both", expand=True)
-        ttk.Label(body, text="隊長選一個、小號勾要巡的。按「認一下」那個視窗會跳到最前面。",
-                  foreground="#666").grid(row=0, column=0, columnspan=5, sticky="w", pady=(0, 8))
+        hint = ("打手選一個；每個帳號勾要吸燃料的角色，都不勾 = 這個帳號不輪替，程式不會碰它。\n"
+                "沒勾本尊的帳號，吸完會自動換回本尊。會記住這次勾的，下次自動勾好。按「認一下」那個視窗會跳到最前面。"
+                if fuel else "隊長選一個、小號勾要巡的。按「認一下」那個視窗會跳到最前面。")
+        ttk.Label(body, text=hint, foreground="#666", justify="left").grid(
+            row=0, column=0, columnspan=ncol, sticky="w", pady=(0, 8))
         leader_var = tk.StringVar(value=last_leader if last_leader in names else "")
-        ttk.Radiobutton(body, text="隊長不在這台電腦", variable=leader_var, value=""
-                        ).grid(row=1, column=0, columnspan=5, sticky="w", pady=(0, 6))
-        for c, text in enumerate(("種類", "名稱", "隊長", "小號", "")):
+        ttk.Radiobutton(body, text="打手不在這台電腦" if fuel else "隊長不在這台電腦",
+                        variable=leader_var, value="").grid(row=1, column=0, columnspan=ncol, sticky="w", pady=(0, 6))
+        for c, text in enumerate(heads):
             ttk.Label(body, text=text, font=("Microsoft JhengHei", 9, "bold")).grid(
                 row=2, column=c, sticky="w", padx=6)
-        alt_vars = []
+        alt_vars = []                                # 組隊：每列一個勾；燃料：每列 [(角色, 勾)…]
         for i, (h, kind, name) in enumerate(rows, 3):
             ttk.Label(body, text=kind).grid(row=i, column=0, sticky="w", padx=6, pady=2)
             ttk.Label(body, text=name).grid(row=i, column=1, sticky="w", padx=6)
             ttk.Radiobutton(body, variable=leader_var, value=name).grid(row=i, column=2, padx=6)
-            v = tk.BooleanVar(value=(name in last_alts and name != leader_var.get()))
-            ttk.Checkbutton(body, variable=v).grid(row=i, column=3, padx=6)
-            alt_vars.append(v)
+            if fuel:
+                vs = []
+                for c, (slot, _) in enumerate(SLOTS, 3):
+                    v = tk.BooleanVar(value=(slot in last_slots.get(name, []) and name != leader_var.get()))
+                    ttk.Checkbutton(body, variable=v).grid(row=i, column=c, padx=6)
+                    vs.append((slot, v))
+                alt_vars.append(vs)
+            else:
+                v = tk.BooleanVar(value=(name in last_alts and name != leader_var.get()))
+                ttk.Checkbutton(body, variable=v).grid(row=i, column=3, padx=6)
+                alt_vars.append(v)
             ttk.Button(body, text="認一下", width=7,
-                       command=lambda h=h: self.peek_window(h, win)).grid(row=i, column=4, padx=6)
+                       command=lambda h=h: self.peek_window(h, win)).grid(row=i, column=ncol - 1, padx=6)
 
-        def leader_changed(*_):                      # 選成隊長的那隻自動取消小號
+        def leader_changed(*_):                      # 選成隊長（打手）的那隻自動取消勾選
             for (h, kind, name), v in zip(rows, alt_vars):
                 if name == leader_var.get():
-                    v.set(False)
+                    for _, x in (v if fuel else [(0, v)]):
+                        x.set(False)
         leader_var.trace_add("write", leader_changed)
 
         r = len(rows) + 3
         gone = [x for x in [last_leader] + list(last_alts) if x and x not in names]
         if gone:
             ttk.Label(body, text="上次選的這幾個這次沒開：" + "、".join(dict.fromkeys(gone)),
-                      foreground="#c01c28").grid(row=r, column=0, columnspan=5, sticky="w", pady=(8, 0))
+                      foreground="#c01c28").grid(row=r, column=0, columnspan=ncol, sticky="w", pady=(8, 0))
             r += 1
 
         def ok():
             leader_name = leader_var.get()
+            shared2 = load_shared()
+            leader = next((h for h, kind, name in rows if name == leader_name), None)
+            if fuel:
+                picked = {}
+                for (h, kind, name), vs in zip(rows, alt_vars):
+                    sl = tuple(slot for slot, v in vs if v.get()) if name != leader_name else ()
+                    picked[name] = (h, sl)
+                alts = [h for h, sl in picked.values() if sl]
+                if not alts:
+                    messagebox.showinfo("沒有要吸的角色", "至少勾一隻要吸燃料的角色。", parent=win)
+                    return
+                memo = dict(last_slots)               # 這次沒開的帳號，保留上次勾的
+                memo.update({name: list(sl) for name, (h, sl) in picked.items()})
+                shared2["fuel_leader_name"] = leader_name
+                shared2["fuel_slots"] = memo
+                save_shared(shared2)
+                slots = {h: sl for h, sl in picked.values() if sl}
+                label = {2: "第2隻", 3: "第3隻", 1: "本尊"}
+                self.log("燃料角色設定：打手 " + (leader_name or "不在這台電腦") + "\n" + "".join(
+                    f"  {rd.window_label(h)}：吸 " + "、".join(label[n] for n in (2, 3, 1) if n in sl)
+                    + ("（吸完換回本尊）" if 1 not in sl else "") + "\n" for h, sl in slots.items()),
+                    target=self.fuel_log)
+                win.destroy()
+                then(leader, alts, slots)
+                return
             alts = [h for (h, kind, name), v in zip(rows, alt_vars) if v.get() and name != leader_name]
             if not alts:
                 messagebox.showinfo("沒有小號", "至少勾一隻小號。", parent=win)
                 return
-            shared2 = load_shared()
             shared2["party_leader_name"] = leader_name
             shared2["party_alt_names"] = [name for (h, kind, name), v in zip(rows, alt_vars)
                                           if v.get() and name != leader_name]
             save_shared(shared2)
-            leader = next((h for h, kind, name in rows if name == leader_name), None)
             self.log("組隊：隊長 " + (leader_name or "不在這台電腦") + "，小號 "
                      + "、".join(rd.window_label(h) for h in alts) + "\n")
             win.destroy()
             then(leader, alts)
 
         bar = ttk.Frame(body)
-        bar.grid(row=r, column=0, columnspan=5, sticky="e", pady=(12, 0))
-        ttk.Button(bar, text="確定，開始", command=ok).pack(side="left", padx=4)
+        bar.grid(row=r, column=0, columnspan=ncol, sticky="e", pady=(12, 0))
+        ttk.Button(bar, text=ok_text, command=ok).pack(side="left", padx=4)
         ttk.Button(bar, text="取消", command=win.destroy).pack(side="left", padx=4)
 
         win.update_idletasks()
@@ -1978,24 +2229,43 @@ class App:
     def _build_settings(self):
         f = self.tab_set
         cfg = load_cfg()
-        box = ttk.LabelFrame(f, text="一般", padding=8)
+        box = ttk.LabelFrame(f, text="常用", padding=8)
         box.pack(fill="x", padx=8, pady=8)
+        adv_wrap = ttk.Frame(f)
+        adv_wrap.pack(fill="x", padx=8)
+        adv_btn = ttk.Button(adv_wrap, text="▶ 顯示進階設定（通常不用動）")
+        adv_btn.pack(anchor="w")
+        adv = ttk.LabelFrame(adv_wrap, text="進階（通常不用動，改錯可能要重抓模板）", padding=8)
+
+        def toggle_adv():
+            if adv.winfo_ismapped():
+                adv.pack_forget()
+                adv_btn.configure(text="▶ 顯示進階設定（通常不用動）")
+            else:
+                adv.pack(fill="x", pady=(4, 0))
+                adv_btn.configure(text="▼ 收起進階設定")
+        adv_btn.configure(command=toggle_adv)
         self.set_vars = {}
-        for i, (key, label, cast, default) in enumerate(SETTINGS):
-            ttk.Label(box, text=label, width=32, anchor="w").grid(
+        rows = {"common": 0, "adv": 0}
+        for key, label, cast, default in SETTINGS:
+            which = "adv" if key in ADVANCED_SETTINGS else "common"
+            parent = adv if which == "adv" else box
+            i = rows[which]
+            rows[which] += 1
+            ttk.Label(parent, text=label, width=46, anchor="w").grid(
                 row=i, column=0, sticky="w", pady=3)
             # 沒寫進 config 的，顯示目前環境實際在用的值。
             # 以前顯示的是官方的預設，在雷電按「儲存」會把快捷鍵、ESC、視窗標題全改成官方的。
             val = cfg.get(key, getattr(rd, key.upper(), default))
             if cast is bool:
                 var = tk.BooleanVar(value=bool(val))
-                ttk.Checkbutton(box, variable=var).grid(row=i, column=1, sticky="w")
+                ttk.Checkbutton(parent, variable=var).grid(row=i, column=1, sticky="w")
             else:
                 var = tk.StringVar(value=str(val))
-                ttk.Entry(box, textvariable=var, width=10).grid(row=i, column=1, sticky="w")
+                ttk.Entry(parent, textvariable=var, width=10).grid(row=i, column=1, sticky="w")
             self.set_vars[key] = (var, cast)
         row = ttk.Frame(f)
-        row.pack(anchor="w", padx=8)
+        row.pack(anchor="w", padx=8, pady=(10, 0))
         ttk.Button(row, text="儲存設定", command=self.save_settings).pack(side="left")
         ttk.Button(row, text="打包給朋友（產生 zip）", command=self.pack_for_friend
                    ).pack(side="left", padx=12)
@@ -2418,9 +2688,8 @@ class App:
         self.btn_party.configure(state=state)
         self.btn_stop.configure(state="normal" if on else "disabled")
         self.btn_party_stop.configure(state="normal" if on else "disabled")
-        self.btn_relist.configure(state=state)
-        self.btn_relist_stop.configure(state="normal" if on else "disabled")
         self.btn_fuel.configure(state=state)
+        self.btn_fuel_set.configure(state=state)
         self.btn_fuel_stop.configure(state="normal" if on else "disabled")
         self.status.set((label + f"　｜　按 {rd.STOP_KEY.upper()} 立刻停止") if on
                         else f"待命中（執行中按 {rd.STOP_KEY.upper()} 可立刻停止）")
