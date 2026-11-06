@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.05n"
+__version__ = "2026.11.06l"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -105,6 +105,7 @@ DUNGEON_LIST_TOP = 110           # 左邊清單的上下界
 DUNGEON_LIST_BOTTOM = 430
 DUNGEON_TAB_Y = 113              # 上方等級分頁列六角形的中心 y（拖曳起點要壓在六角形上）
 DUNGEON_FIRST_TAB = (290, 113)   # 分頁列拖到最左之後，第一格（Lv.20）六角形的中心（實測 294 上下）
+DUNGEON_LAST_TAB = None          # 分頁列拖到最左之後，最右邊那格（VII）的中心；有抓就用來算每格間距（選 Lv.20 以外的等級）
 STRIP_DRAG_END = 0.95            # 拖分頁列時在工作區寬度幾成的地方放開（要在分頁列外框裡面，跑出去遊戲會當作取消）
 MAX_SWEEPS = 14                  # 掃蕩最多點幾次（正常 6 次，漏一天 12 次）
 SETTINGS_BTN = None              # 沒快捷鍵時，「更多」選單裡的「設置」位置
@@ -127,7 +128,7 @@ RAW_MOUSE = False                # 拖曳時用「真正的滑鼠移動訊號」
 QUICK_NO_REMIND = None           # 快速完成偶爾跳的確認視窗：「不再提示」前面的方框
 QUICK_CONFIRM_OK = None          # 同一個視窗的綠色「確定」
 ABANDON_OK = None                # 「是否要放棄懸賞任務？」視窗的綠色「確定」
-TICKET_KEY = "f2"                # 副本掃蕩券放在快捷列 F2（官方按這個鍵）
+TICKET_KEY = "f2"                # 時空矩陣掃蕩券放在快捷列 F2（官方按這個鍵）
 TICKET_SLOT = None               # 快捷列 F2 那一格（雷電沒快捷鍵時點這裡）
 EXCHANGE_SLOT = None             # 快捷列上「交易所」那一格（一鍵上架用；官方雷電都放第 1 格）
 RELIST_MAX = 20                  # 一鍵上架最多按幾次（常常一次只上架一兩件，要一直按到按鈕消失）
@@ -203,7 +204,7 @@ def start_stop_hotkey(key=None):
     t.start()
     return t
 
-pyautogui.FAILSAFE = True
+pyautogui.FAILSAFE = False      # 使用者要求：滑鼠碰到螢幕左上角不要停止（遊戲視窗就在左上角，很容易誤觸），只用 F12 停止
 pyautogui.PAUSE = 0.03
 
 # 會被環境切換影響的全部變數，切換時先回到基準值再套用環境值
@@ -212,7 +213,7 @@ _TUNABLES = ["WINDOW_TITLE", "WINDOW_EXCLUDE", "WINDOW_EXES", "HOTKEYS", "USE_ES
              "SAFE_CLICK", "SCROLL_POINT", "SCROLL_POINT_ALT", "LIST_TOP", "LIST_BOTTOM",
              "DAILY_KEY", "PET_KEY", "PET_TAB", "PET_SLOT", "WAKE_CLICK", "DAILY_BTN", "TICKET_KEY", "TICKET_SLOT", "EXCHANGE_SLOT", "RELIST_MAX", "RED_DOT_SKIP", "REMEMBER_DONE", "REDEEM_SKIP_DRAGS", "QUICK_NO_REMIND", "QUICK_CONFIRM_OK", "ABANDON_OK", "RAW_MOUSE", "LIST_CHECK_REGION", "LIST_MOVE_TOL", "PET_GIFT_MIN_X",
              "DUNGEON_KEY", "DUNGEON_BTN", "DUNGEON_LIST_X", "DUNGEON_LIST_TOP",
-             "DUNGEON_LIST_BOTTOM", "DUNGEON_TAB_Y", "DUNGEON_FIRST_TAB", "STRIP_DRAG_END", "MAX_SWEEPS",
+             "DUNGEON_LIST_BOTTOM", "DUNGEON_TAB_Y", "DUNGEON_FIRST_TAB", "DUNGEON_LAST_TAB", "STRIP_DRAG_END", "MAX_SWEEPS",
              "SETTINGS_BTN", "REDEEM_INPUT_DY", "WEEKLY_TAB", "CLAIM_WEEKLY",
              "PET_MODE", "PET_SLOTS", "ROW_SAFE_TOP", "ROW_SAFE_BOTTOM",
              "ENABLE_BONUS", "ADAPTIVE_WAIT", "RETRY_FAILED", "SLOW"]
@@ -305,7 +306,7 @@ def _load_config():
                       ("exchange_slot", "EXCHANGE_SLOT"), ("ticket_slot", "TICKET_SLOT"),
                       ("quick_no_remind", "QUICK_NO_REMIND"), ("quick_confirm_ok", "QUICK_CONFIRM_OK"),
                       ("abandon_ok", "ABANDON_OK"),
-                      ("dungeon_first_tab", "DUNGEON_FIRST_TAB"),
+                      ("dungeon_first_tab", "DUNGEON_FIRST_TAB"), ("dungeon_last_tab", "DUNGEON_LAST_TAB"),
                       ("settings_btn", "SETTINGS_BTN"), ("weekly_tab", "WEEKLY_TAB")):
         if cfg.get(key):
             g[name] = tuple(cfg[key])
@@ -972,6 +973,55 @@ def move_window(hwnd, x, y, w, h):
     win32gui.SetWindowPos(hwnd, win32con.HWND_TOP, x, y, w, h,
                           win32con.SWP_SHOWWINDOW)
     nap(0.4)
+
+
+def remember_place(hwnd):
+    """開始做事前，記住視窗原本的樣子（位置、大小、有沒有縮小、有沒有放到最大）。
+    不能只用 get_rect：縮小到工作列的視窗，GetWindowRect 回報的是螢幕外的假位置（-32000），
+    做完搬回那裡，視窗就跑到螢幕外面、又不是縮小狀態 → 工作列按不出來（2026.11.06c）。"""
+    try:
+        iconic = bool(win32gui.IsIconic(hwnd))
+    except Exception:
+        iconic = False
+    try:
+        placement = win32gui.GetWindowPlacement(hwnd)
+    except Exception:
+        placement = None
+    rect = None if iconic else get_rect(hwnd)
+    return {"iconic": iconic, "placement": placement, "rect": rect}
+
+
+def restore_place(hwnd, saved):
+    """做完事後放回 remember_place 記住的樣子：原本縮小的再縮小回去，原本最大化的再放大。"""
+    if not saved:
+        return
+    if isinstance(saved, tuple):                    # 舊的寫法（只有位置大小）
+        move_window(hwnd, *saved)
+        return
+    pl = saved.get("placement")
+    if not saved.get("iconic"):
+        if pl and pl[1] == win32con.SW_SHOWMAXIMIZED:   # 原本放到最大：連「還原後的大小」一起放回去
+            try:
+                win32gui.SetWindowPlacement(hwnd, pl)
+                return
+            except Exception:
+                pass
+        if saved.get("rect"):
+            move_window(hwnd, *saved["rect"])
+        return
+    # 原本是縮小的：把「正常時的位置」設回去，同時縮小（不搶走目前視窗的焦點）
+    if pl:
+        try:
+            flags, _show, pmin, pmax, rnormal = pl
+            win32gui.SetWindowPlacement(hwnd, (flags, win32con.SW_SHOWMINNOACTIVE, pmin, pmax, rnormal))
+            if win32gui.IsIconic(hwnd):
+                return
+        except Exception:
+            pass
+    try:
+        win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+    except Exception:
+        pass
 
 
 _size_noted = False
@@ -2119,7 +2169,7 @@ def do_commission(idx):
 
 
 # ---------------------------------------------------------------------------
-# 任務：副本掃蕩（狂想寓言 Lv.20）
+# 任務：副本掃蕩（狂想寓言，等級在控制台「各帳號設定」選，預設 Lv.20）
 # ---------------------------------------------------------------------------
 
 def drag_line(x0, y0, x1, y1, steps=20, hold=0.03):
@@ -2201,10 +2251,26 @@ def open_dungeon():
                 back_to_main()
                 return False, "「更多」選單裡找不到「副本」"
             click_at(pt[0], pt[1], wait=T_PANEL_MAX)
-    if has("dungeon_panel.png"):
-        if wait_for("dungeon_panel.png", timeout=5.0):
+    # 看到其中一張就算面板開了：朋友的「所有副本」比不到（用的是共用模板），面板其實已經開著卻被當成打不開
+    marks = [t for t in ("dungeon_panel.png", "fable_row.png", "dungeon_title.png", "cake_row.png") if has(t)]
+    names = {"fable_row.png": "清單裡的【狂想寓言】", "dungeon_title.png": "狂想寓言標題",
+             "cake_row.png": "清單裡的【蛋糕保衛戰】"}
+    if marks:
+        hit = []
+
+        def seen(sc):
+            for t in marks:
+                if find_one(sc, t):
+                    hit.append(t)
+                    return True
+            return False
+        if wait_until(seen, 5.0):
+            if hit[0] != "dungeon_panel.png" and has("dungeon_panel.png"):
+                step(f"沒認出「所有副本」字樣，但看到{names[hit[0]]}，當作面板已經打開（建議到校正頁重抓「所有副本」）")
             return True, ""
-        return False, "點完之後沒看到「所有副本」字樣（dungeon_panel 模板可能對不上，或點的位置不對）"
+        if has("dungeon_panel.png"):
+            return False, ("點完之後沒看到「所有副本」字樣、也沒看到清單裡的【狂想寓言】【蛋糕保衛戰】"
+                           "（模板可能對不上，或點的位置不對；可以到校正頁「副本掃蕩」重抓「所有副本」）")
     if wait_until(lambda sc: not on_main(sc), 4.0):
         return True, ""
     return False, "點完之後還在主畫面"
@@ -2334,36 +2400,94 @@ def select_fable():
     return False
 
 
-def select_lv20():
-    """選到 Lv.20。
+# 狂想寓言的 14 格等級：拖到最左看到 I～VII，拖到最右看到 VIII～XIV（兩個畫面各 7 格，位置一樣）
+# Lv.100、Lv.110 各有三格，所以用羅馬數字分。
+DUNGEON_LEVELS = [("I", 20), ("II", 30), ("III", 40), ("IV", 50), ("V", 60), ("VI", 70), ("VII", 80),
+                  ("VIII", 90), ("IX", 100), ("X", 100), ("XI", 100), ("XII", 110), ("XIII", 110), ("XIV", 110)]
 
-    把分頁列往左端拖到底（一次拖不動就是到底了），最左邊那格必定是 Lv.20，
-    點它，再用「藍色掃蕩按鈕有沒有出現」確認真的選到了。
+
+def dungeon_level_name(n):
+    r, lv = DUNGEON_LEVELS[max(1, min(len(DUNGEON_LEVELS), n)) - 1]
+    return f"{r}（Lv.{lv}）"
+
+
+def account_name(hwnd):
+    """每個帳號自己的設定用這個當名字（種類＋視窗名稱）。不含程式編號，模擬器重開也對得上。"""
+    return f"{window_kind(hwnd)}|{window_label(hwnd)}"
+
+
+def dungeon_level_of(hwnd):
+    """這個帳號副本要掃第幾格（1～14，沒設定就是 1 = Lv.20）。在控制台「各帳號設定」設。"""
+    try:
+        v = int(_read_json(SHARED_CONFIG_PATH).get("dungeon_levels", {}).get(account_name(hwnd), 1))
+    except Exception:
+        v = 1
+    return max(1, min(len(DUNGEON_LEVELS), v))
+
+
+def strip_tab_step():
+    """等級列每一格的間距。有抓「最右邊那格（VII）」就用量的，沒有就用比例估（800 寬時約 70）。"""
+    if DUNGEON_LAST_TAB and DUNGEON_FIRST_TAB and DUNGEON_LAST_TAB[0] > DUNGEON_FIRST_TAB[0]:
+        return (DUNGEON_LAST_TAB[0] - DUNGEON_FIRST_TAB[0]) / 6.0
+    return AREA_W * 70 / 800
+
+
+def strip_scroll_right(y):
+    """把等級分頁列往右端拖一段（看 VIII～XIV）。回傳分頁列有沒有真的移動。
+    跟往左一樣要按在六角形本體上慢慢拖：起點用第 6 格附近（怎麼捲都壓得到某顆六角形），
+    放開在第一格左邊一點（還在分頁列外框裡面）。"""
+    x0 = int(strip_hex_x() + 4 * strip_tab_step())
+    x1 = int(DUNGEON_FIRST_TAB[0] - 20)
+    park_mouse()
+    before = grab()
+    drag_line(x0, y, x1, y, steps=26, hold=0.04)
+    park_mouse()
+    wait_stable(1.2)
+    return strip_changed(before, grab())
+
+
+def select_level(n=1):
+    """選到第 n 格等級（1 = I Lv.20 … 14 = XIV Lv.110）。
+
+    1～7：分頁列拖到最左；8～14：拖到最右。兩邊都是一次拖不動就是到底了。
+    到底後 7 格的位置固定，第 k 格 = 第一格 + (k-1) × 間距。
+    點了以後用「藍色掃蕩按鈕有沒有出現」確認真的選到了。
 
     以前「看得到 lv20_tab.png 就不拖」：但每格六角形長得幾乎一樣，被選中的 Lv.40
     會被當成 Lv.20，結果完全沒拖就去點（雷電實際發生，使用者看到「只有點、沒有拉」）。
-    現在一律先拖到底，模板只拿來決定點哪一格。每次拖的結果都印出來，方便事後判斷。
+    現在一律先拖到底，模板只拿來決定點哪一格（只有 Lv.20 有模板）。
     """
+    n = max(1, min(len(DUNGEON_LEVELS), n))
+    name = dungeon_level_name(n)
+    right = n > 7
     y = DUNGEON_TAB_Y
-    for n in range(5):
-        moved = strip_scroll_left(y)
-        step(f"分頁列往左拖第 {n + 1} 次：{'有動' if moved else '沒動（到最左了，或拖曳沒生效）'}")
+    for i in range(6 if right else 5):
+        moved = strip_scroll_right(y) if right else strip_scroll_left(y)
+        step(f"分頁列往{'右' if right else '左'}拖第 {i + 1} 次：{'有動' if moved else '沒動（到底了，或拖曳沒生效）'}")
         if not moved:
             break                                  # 拖不動 = 到底了
 
-    targets = []
-    tab = find_one(grab(), "lv20_tab.png", threshold=0.9)
-    if tab:
-        targets.append((tab[0] + tab[2] // 2, tab[1] + tab[3] // 2))
+    k = n - 7 if right else n                      # 這個畫面裡的第幾格
     fx, fy = DUNGEON_FIRST_TAB
-    targets += [(fx, fy), (fx, fy + 27)]
-    for cx, cy in targets:
-        click_at(cx, cy, wait=T_PANEL_MAX)
+    cx = int(round(fx + (k - 1) * strip_tab_step()))
+    targets = []
+    if n == 1:
+        tab = find_one(grab(), "lv20_tab.png", threshold=0.9)
+        if tab:
+            targets.append((tab[0] + tab[2] // 2, tab[1] + tab[3] // 2))
+    targets += [(cx, fy), (cx, fy + 27)]
+    for tx, ty in targets:
+        click_at(tx, ty, wait=T_PANEL_MAX)
         if find_sweep_button():
-            step(f"點第一格 Lv.20（{cx},{cy}）：藍色「掃蕩」按鈕出現了")
+            step(f"點 {name}（{tx},{ty}）：藍色「掃蕩」按鈕出現了")
             return True
-        step(f"點第一格 Lv.20（{cx},{cy}）：沒看到藍色「掃蕩」按鈕")
+        step(f"點 {name}（{tx},{ty}）：沒看到藍色「掃蕩」按鈕")
     return find_sweep_button() is not None
+
+
+def select_lv20():
+    """舊名字，等於選第 1 格（Lv.20）。"""
+    return select_level(1)
 
 
 _last_red_count = -1
@@ -2410,7 +2534,7 @@ def find_sweep_button(screen=None):
 
 
 def do_dungeon(idx):
-    """U → 狂想寓言 → Lv.20 → 掃蕩到紅字。回傳 (掃滿了嗎, 訊息)。"""
+    """U → 狂想寓言 → 這個帳號設定的等級（預設 Lv.20）→ 掃蕩到紅字。回傳 (掃滿了嗎, 訊息)。"""
     step("打開副本面板" + (f"（按 {DUNGEON_KEY.upper()}）" if HOTKEYS else "（點「更多」→「副本」）"))
     opened, why = open_dungeon()
     if not opened:
@@ -2426,14 +2550,18 @@ def do_dungeon(idx):
         back_to_main()
         return False, f"左邊清單找不到狂想寓言（{shot}）"
 
-    if not select_lv20():
-        shot = dump_fail(f"win{idx:02d}_dg_lv20")
+    level = dungeon_level_of(CUR_HWND) if CUR_HWND else 1
+    lname = dungeon_level_name(level)
+    step(f"這個帳號設定掃 {lname}")
+    if not select_level(level):
+        shot = dump_fail(f"win{idx:02d}_dg_level{level}")
         gray = has("sweep_disabled.png") and find_one(grab(), "sweep_disabled.png")
         back_to_main()
         if gray:
-            step("看到灰色的「掃蕩」按鈕：這週 Lv.20 還沒手動打過")
-            return MANUAL, f"Lv.20 掃蕩是灰的：這週還沒手動打過，先打一次才能掃（或沒選到 Lv.20）（{shot}）"
-        return False, f"選不到能掃的 Lv.20（{shot}）"
+            step(f"看到灰色的「掃蕩」按鈕：{lname} 這週還沒手動打過，或還沒解鎖")
+            return MANUAL, (f"{lname} 掃蕩是灰的：這週還沒手動打過或還沒解鎖，先打一次才能掃"
+                            f"（或沒選到 {lname}；可以到控制台「各帳號設定」換一級）（{shot}）")
+        return False, f"選不到能掃的 {lname}（{shot}）"
 
     state = playtime_is_red()
     step("「消耗玩法時長」：" + {True: "已經是紅字（今天掃滿了）", False: "還沒紅，開始掃蕩",
@@ -2580,7 +2708,7 @@ def input_bar_visible(screen=None):
 
 
 # ---------------------------------------------------------------------------
-# 副本掃蕩券（快捷列 F2，每天用一次）
+# 時空矩陣掃蕩券（快捷列 F2，每天用一次）
 # ---------------------------------------------------------------------------
 # 同一天按第二次會「真的再用掉一張」，所以寧可漏按也不要多按：
 #   按之前先記「tried」→ 看到禮物視窗再記「used」。下次看到 tried 沒有 used 就不按，請使用者自己確認。
@@ -2594,12 +2722,12 @@ def do_ticket(idx):
     key = ticket_key(CUR_HWND)
     done = done_today(key)
     if "used" in done:
-        return True, "副本掃蕩券今天已經用過了（紀錄），跳過"
+        return True, "時空矩陣掃蕩券今天已經用過了（紀錄），跳過"
     if "tried" in done:
         return MANUAL, ("今天按過掃蕩券但沒確認到禮物視窗，為了不多用一張，今天不會再按；"
                         "請自己看一下，確定沒用到的話按控制台「清除今天的完成紀錄」再跑")
     if not (has("sweep_gift.png") and has("ticket_icon.png") and TICKET_SLOT):
-        return MANUAL, "副本掃蕩券還沒校正完（校正頁「副本掃蕩券」：禮物盒、F2 上的掃蕩券圖示、F2 那一格的位置）"
+        return MANUAL, "時空矩陣掃蕩券還沒校正完（校正頁「時空矩陣掃蕩券」：禮物盒、F2 上的掃蕩券圖示、F2 那一格的位置）"
     if not on_main() and not back_to_main():
         return False, f"不在主畫面，沒按掃蕩券（{dump_fail(f'win{idx:02d}_ticket_start')}）"
     # 不是每隻角色都有掃蕩券：沒有的 F2 可能是空的，也可能放了別的東西（按下去會用掉那個東西！）
@@ -2608,7 +2736,7 @@ def do_ticket(idx):
     here = [b for b in find_all(grab(), "ticket_icon.png")
             if abs(b[0] + b[2] // 2 - sx) < 40 and abs(b[1] + b[3] // 2 - sy) < 40]
     if not here:
-        return True, "這隻角色沒有副本掃蕩券（F2 不是掃蕩券），跳過"
+        return True, "這隻角色沒有時空矩陣掃蕩券（F2 不是掃蕩券），跳過"
 
     mark_done("tried", key)                        # 先記：就算按完程式剛好停掉，下次也不會再按
     if HOTKEYS:
@@ -2629,7 +2757,7 @@ def do_ticket(idx):
     if not wait_until(lambda sc: find_one(sc, "sweep_gift.png") is None, 3.0):
         safe_click(1)
     back_to_main()
-    return True, "副本掃蕩券已使用"
+    return True, "時空矩陣掃蕩券已使用"
 
 
 def lowest_redeem_btn():
@@ -3036,7 +3164,7 @@ def do_relist(idx):
 
 
 ALL_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem", "relist")
-MAIN_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem")   # 控制台勾選的（一鍵上架在自己的分頁）
+MAIN_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem", "relist")   # 控制台勾選的（一鍵上架預設不勾）
 
 # ---------------------------------------------------------------------------
 # 今天做完的紀錄（早上 6 點換日）
@@ -3114,7 +3242,7 @@ def clear_today():
     st = _state()
     st["done"] = {}
     _save_state(st)
-TASK_LABELS = {"pet": "寵物打工", "comm": "任務委託板", "dungeon": "副本掃蕩", "ticket": "副本掃蕩券",
+TASK_LABELS = {"pet": "寵物打工", "comm": "任務委託板", "dungeon": "副本掃蕩", "ticket": "時空矩陣掃蕩券",
                "claim": "領取獎勵", "bonus": "每日福利", "redeem": "兌換序號", "relist": "一鍵上架"}
 DEFAULT_ON = {"pet", "comm", "dungeon", "claim", "bonus", "ticket"}     # 兌換序號預設不勾
 
@@ -3164,7 +3292,7 @@ def do_account(idx, hwnd, tasks=None):
     KEEP_DAILY = "claim" in tasks                  # 委託做完直接接著領取，不用關掉日常面板再開
     if not ENABLE_BONUS:
         tasks.discard("bonus")
-    orig = get_rect(hwnd)
+    orig = remember_place(hwnd)
     notes = []
     by_task = {}                                   # 每項任務自己的結果（補跑時拿來合併總結）
     flags = {}
@@ -3252,7 +3380,7 @@ def do_account(idx, hwnd, tasks=None):
     finally:
         CUR_HWND = None
         try:
-            move_window(hwnd, *orig)
+            restore_place(hwnd, orig)
         except Exception:
             pass
 
@@ -3281,7 +3409,7 @@ def _with_window(n, fn):
         print(f"目前只有 {len(hwnds)} 個視窗")
         return
     hwnd = hwnds[n - 1]
-    orig = get_rect(hwnd)
+    orig = remember_place(hwnd)
     try:
         normalize_window(hwnd)
         print(f"=== 視窗 {n} ===")
@@ -3289,7 +3417,7 @@ def _with_window(n, fn):
     except Aborted:
         print("已中止")
     finally:
-        move_window(hwnd, *orig)
+        restore_place(hwnd, orig)
 
 
 def cmd_pet(n=1):
@@ -3305,12 +3433,12 @@ def cmd_snap():
     hwnds = find_windows()
     print(f"找到 {len(hwnds)} 個 {WINDOW_TITLE} 視窗")
     for i, hwnd in enumerate(hwnds, 1):
-        orig = get_rect(hwnd)
+        orig = remember_place(hwnd)
         normalize_window(hwnd)
         path = os.path.join(SHOT_DIR, f"win{i:02d}.png")
         imwrite(path, grab())
         print(f"  已存 {path}")
-        move_window(hwnd, *orig)
+        restore_place(hwnd, orig)
 
 
 def cmd_dgtest(n=1):
@@ -3509,11 +3637,12 @@ def _cmd_run(only, tasks, windows):
 
     for n, hwnd in picked:
         x, y, w, h = get_rect(hwnd)
-        print(f"  {win_title(n, hwnd, pad=True)}：「{win32gui.GetWindowText(hwnd)}」 位置 ({x}, {y}) 大小 {w}x{h}")
+        where = "縮小在工作列（做完會再縮小回去）" if win32gui.IsIconic(hwnd) else f"位置 ({x}, {y}) 大小 {w}x{h}"
+        print(f"  {win_title(n, hwnd, pad=True)}：「{win32gui.GetWindowText(hwnd)}」 {where}")
     print(f"\n準備處理 {len(picked)} 個視窗，任務："
           + "、".join(TASK_LABELS[t] for t in ALL_TASKS if t in tasks) + "，3 秒後開始")
     print(f"（每個帳號的「寵物手冊」要放在 {PET_KEY.upper()} 快捷鍵；"
-          "跑的時候不要碰滑鼠鍵盤；滑鼠甩到左上角可中止）")
+          f"跑的時候不要碰滑鼠鍵盤；按 {STOP_KEY.upper()} 停止）")
     for i in (3, 2, 1):
         print(f"  {i}...")
         time.sleep(1)
