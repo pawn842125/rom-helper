@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.06l"
+__version__ = "2026.11.06m"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -2491,6 +2491,7 @@ def select_lv20():
 
 
 _last_red_count = -1
+PLAYTIME_RED_MIN = 5              # 「消耗玩法時長」的數字有幾個紅色像素以上算紅了
 
 
 def playtime_is_red():
@@ -2518,7 +2519,8 @@ def playtime_is_red():
     r = region[:, :, 2].astype(int)
     red = int(((r > 140) & (g < 120) & (b < 120) & (r - g > 60)).sum())
     _last_red_count = red
-    return red >= 15
+    # 門檻 5（以前 15）：朋友的官方畫面字小，紅的時候只數到 11、沒紅是 0，15 會一直判成沒紅、掃到上限（2026.11.06m）
+    return red >= PLAYTIME_RED_MIN
 
 
 def find_sweep_button(screen=None):
