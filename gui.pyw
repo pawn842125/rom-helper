@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.06m"
+__version__ = "2026.11.11"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -267,6 +267,7 @@ CALIB_GROUPS = [
          ("tmpl", "chat_close.png", "聊天視窗右邊的收起箭頭「<」", (20, 46), "btn", "feat"),
          ("point", "bag_btn", "主畫面上方「包包」按鈕（雷電用；官方按 B，雷電預設 611, 45）", "feat:nokey"),
          ("point", "bag_fav_tab", "包包裡的愛心分頁", "feat"),
+         ("point", "bag_scroll", "包包打開在愛心分頁時，物品格子區的正中間（選用：愛心放很多東西、燃料不在第一頁時，程式從這裡上下拖來找）", False),
          ("tmpl", "fuel_item.png", "包包愛心分頁裡的燃料圖示（只框上半部的紅色礦石，滑鼠放礦石中間偏上；"
           "右下角的數量會一直變，框到就會認不到）", (40, 28), "btn", "feat"),
          ("tmpl", "fuel_full.png", "點燃料後「每日獲取上限：2000/2000」裡的 2000/2000", (50, 16), "btn", "feat"),
@@ -957,8 +958,11 @@ class App:
             cols = int(self.arrange_cols.get())
         except ValueError:
             cols = 0
-        rd.arrange_windows(cols=cols, log=lambda t: self.log(t + "\n"))
-        self.log("排好了。按「標示視窗編號」確認。\n", "ok")
+        # 放到背景做（跟其他工作同一套），GUI 不會被遊戲視窗拖住而「沒有回應」
+        def job():
+            if rd.arrange_windows(cols=cols, log=print):
+                print("排好了。按「標示視窗編號」確認。")
+        self.start(job, "排列視窗中")
 
     def kill_dialog(self):
         """列出每個視窗是哪一份，勾選後強制關閉（卡在讀取畫面轉圈圈時用）。"""
@@ -1385,7 +1389,7 @@ class App:
                  "party_friend_first": "P_FRIEND_FIRST", "party_apply_flag": "P_APPLY_FLAG",
                  "party_btn": "P_PARTY_BTN", "friend_btn": "P_FRIEND_BTN",
                  "more_btn": "P_MORE_BTN", "chat_open": "P_CHAT_OPEN", "bag_btn": "P_BAG_BTN",
-                 "bag_fav_tab": "P_BAG_FAV"}
+                 "bag_fav_tab": "P_BAG_FAV", "bag_scroll": "P_BAG_SCROLL"}
         if key in party:
             return getattr(rp, party[key], None)
         return getattr(rd, key.upper(), None)
