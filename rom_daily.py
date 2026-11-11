@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.06m"
+__version__ = "2026.11.11"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -868,6 +868,11 @@ def arrange_windows(cols=0, log=print):
         gw = int(game_width(cols))
     log(f"螢幕可用 {sw}x{sh}，{n} 個視窗排成 {cols} 欄 x {rows} 列，遊戲畫面每個 {gw} 寬（保持原本比例）")
 
+    # 使用者：按自動排列 GUI 會當掉。以前每搬一個都「等那個遊戲視窗回應」，遊戲在讀取／沒回應時 GUI 就跟著卡住。
+    # 現在：送出搬移指令就好（非同步，不等回應），全部送完等一下再一個一個檢查有沒有到位（2026.11.06n）。
+    user32 = ctypes.windll.user32
+    SWP_NOZORDER, SWP_SHOWWINDOW, SWP_ASYNC = 0x0004, 0x0040, 0x4000
+    targets = []
     y = top
     for r in range(rows):
         row = wins[r * cols:(r + 1) * cols]
@@ -877,21 +882,52 @@ def arrange_windows(cols=0, log=print):
             ew, eh, ratio = frames[hwnd]
             w, h = gw + ew, int(round(gw / ratio)) + eh          # 看得到的大小
             row_h = max(row_h, h)
+            hung = False
             try:
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                hung = bool(user32.IsHungAppWindow(hwnd))
+            except Exception:
+                pass
+            try:
+                if win32gui.IsIconic(hwnd):
+                    user32.ShowWindowAsync(hwnd, win32con.SW_RESTORE)   # 不等它回應
                 il, it, ir, ib = invisible_border(hwnd)
                 # 實際設定時把看不到的邊框加回去，讓「看得到的邊」剛好落在 (x, y)
-                win32gui.SetWindowPos(hwnd, 0, x - il, y - it, w + il + ir, h + it + ib,
-                                      0x0004 | 0x0040)   # NOZORDER | SHOWWINDOW
-                time.sleep(0.2)
-                nx, ny, nw, nh = get_rect(hwnd)
-                ok = abs(nx + il - x) < 20 and abs(ny + it - y) < 20
-                log(f"  {i + 1:2d}. {name} → ({x}, {y}) {w}x{h}"
-                    + ("" if ok else f"　⚠ 實際在 ({nx}, {ny}) {nw}x{nh}，視窗不接受這個位置/大小"))
+                user32.SetWindowPos(hwnd, 0, x - il, y - it, w + il + ir, h + it + ib,
+                                    SWP_NOZORDER | SWP_SHOWWINDOW | SWP_ASYNC)
+                targets.append((i, hwnd, name, x, y, w, h, il, it, hung))
             except Exception as e:
                 log(f"  {name} 排不動：{e}")
             x += w                                 # 下一個緊接在右邊
         y += row_h                                 # 下一列接在這列下面
+
+    # 等遊戲視窗自己處理完搬移（沒回應的不會擋住別人），再檢查
+    deadline = time.time() + 3.0
+    pending = list(targets)
+    while pending and time.time() < deadline:
+        time.sleep(0.3)
+        still = []
+        for t in pending:
+            _, hwnd, _, x, y, _, _, il, it, _ = t
+            try:
+                nx, ny, _, _ = get_rect(hwnd)
+            except Exception:
+                continue
+            if not (abs(nx + il - x) < 20 and abs(ny + it - y) < 20):
+                still.append(t)
+        pending = still
+    late = {t[1] for t in pending}
+    for i, hwnd, name, x, y, w, h, il, it, hung in targets:
+        if hwnd not in late:
+            log(f"  {i + 1:2d}. {name} → ({x}, {y}) {w}x{h}")
+            continue
+        try:
+            nx, ny, nw, nh = get_rect(hwnd)
+            where = f"實際在 ({nx}, {ny}) {nw}x{nh}"
+        except Exception:
+            where = "讀不到位置"
+        why = "這個遊戲視窗沒有回應（可能在讀取或卡住），" if hung else ""
+        log(f"  {i + 1:2d}. {name} → ({x}, {y}) {w}x{h}　⚠ {why}還沒排到位：{where}"
+            "（等它恢復再按一次自動排列）")
     return n
 
 
@@ -1830,16 +1866,36 @@ def still_on_list(screen=None):
 ROW_BUTTON_X_RATIO = 0.87        # 清單右邊那欄按鈕的 x 大約在工作區寬度的 87%
 
 
+ROW_OPEN_WAIT = 4.0              # 點了「前往」後，最多等幾秒讓面板打開（清單消失）才算沒點到
+
+
+def _settled_row(row, tmpl):
+    """點之前等清單停下來，再重找一次那一列（停下來後位置可能變了）。
+    清單會自己彈回頂端的帳號（LIST_BOUNCES）不能等，要搶在彈回之前點，照原本的位置。"""
+    if LIST_BOUNCES:
+        return row
+    wait_stable(1.5)
+    fresh = find_one(grab(), tmpl)
+    if fresh and row_visible(fresh):
+        return fresh
+    return row
+
+
 def click_row_button(row, tmpl):
-    """點某一列右邊的按鈕：先用校正的偏移量，沒進去就改點按鈕欄的固定位置。"""
+    """點某一列右邊的按鈕：先用校正的偏移量，沒進去就改點按鈕欄的固定位置。
+
+    朋友實測（有時候）：清單剛捲過、還在滑就點，「前往」沒反應 → 進不去委託看板。
+    現在點之前先等清單停下來、重找位置；點完最多等 ROW_OPEN_WAIT 秒讓面板打開才判斷（2026.11.06o）。"""
+    row = _settled_row(row, tmpl)
     step("點那一列右邊的「前往」")
-    click_box(row, tmpl, wait=T_PANEL_MAX)
-    if not still_on_list():
+    click_box(row, tmpl, wait=0.5)
+    if wait_until(lambda sc: not still_on_list(sc), ROW_OPEN_WAIT):
         return True
     step("還在清單上，改點按鈕欄的固定位置再試一次")
+    row = _settled_row(row, tmpl)
     cy = row[1] + row[3] // 2
-    click_at(int(AREA_W * ROW_BUTTON_X_RATIO), cy, wait=T_PANEL_MAX)
-    return not still_on_list()
+    click_at(int(AREA_W * ROW_BUTTON_X_RATIO), cy, wait=0.5)
+    return wait_until(lambda sc: not still_on_list(sc), ROW_OPEN_WAIT)
 
 
 def open_row(tmpl):
@@ -3124,7 +3180,16 @@ def do_relist(idx):
 
     step(f"點快捷列的交易所（{EXCHANGE_SLOT[0]},{EXCHANGE_SLOT[1]}）")
     click_at(EXCHANGE_SLOT[0], EXCHANGE_SLOT[1], wait=T_PANEL_MAX)
-    tab = wait_for("exchange_sell_tab.png", timeout=8.0)
+    # 使用者實測：視窗 3、4 點了交易所沒打開（失敗截圖是主畫面），手動一點就開 → 點一下偶爾被吃掉。
+    # 先等 4 秒；沒出現「我要出售」而且還在主畫面，就再點一次，再等最多 8 秒（2026.11.06p）。
+    tab = wait_for("exchange_sell_tab.png", timeout=4.0)
+    if not tab:
+        if on_main():
+            step("點了交易所沒反應（還在主畫面），再點一次")
+            click_at(EXCHANGE_SLOT[0], EXCHANGE_SLOT[1], wait=T_PANEL_MAX)
+        else:
+            step("交易所還沒出現「我要出售」，再等一下")
+        tab = wait_for("exchange_sell_tab.png", timeout=8.0)
     if not tab:
         shot = dump_fail(f"win{idx:02d}_relist_open")
         back_to_main()
