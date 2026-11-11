@@ -31,6 +31,7 @@ ROM Classic 組隊輪替
     python rom_party.py once 3          # 只看第 3 個視窗一次
 """
 
+import os
 import sys
 import time
 
@@ -44,7 +45,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.06m"
+__version__ = "2026.11.11"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -72,6 +73,7 @@ P_CHAR_SLOTS = [None, None, None]  # 選角畫面左邊 3 個頭像（第 1 個�
 P_CHAT_OPEN = None               # 主畫面左下角的對話框
 P_BAG_BTN = None                 # 主畫面上方「包包」按鈕（沒快捷鍵時）
 P_BAG_FAV = None                 # 包包裡的愛心分頁
+P_BAG_SCROLL = None              # 包包物品格子區的正中間（燃料不在第一頁時從這裡上下拖來找）
 
 # 模板：count_full.png 紅字 10000/10000、leave_party.png 離開隊伍、
 #       create_party.png 創建隊伍、confirm_ok.png 綠色確定
@@ -83,7 +85,7 @@ def _load():
     """組隊的設定在共用 config；四個位置在目前環境的 config。"""
     global PARTY_KEY, FRIEND_KEY, PARTY_SIZE, LEADER_WINDOW, ALT_WINDOWS, INTERVAL_MIN
     global P_AVATAR, P_FAV_TAB, P_FRIEND_FIRST, P_APPLY_FLAG, P_PARTY_BTN, P_FRIEND_BTN, P_MORE_BTN
-    global FUEL_MAX, FUEL_GAP, BAG_KEY, P_CHAR_SLOTS, P_CHAT_OPEN, P_BAG_BTN, P_BAG_FAV
+    global FUEL_MAX, FUEL_GAP, BAG_KEY, P_CHAR_SLOTS, P_CHAT_OPEN, P_BAG_BTN, P_BAG_FAV, P_BAG_SCROLL
     shared = rd._read_json(rd.SHARED_CONFIG_PATH)
     FUEL_MAX = int(shared.get("fuel_max", 5))
     FUEL_GAP = float(shared.get("fuel_gap", 20.0))
@@ -114,6 +116,7 @@ def _load():
     bag = prof.get("bag_btn") or ((611, 45) if rd.ACTIVE_PROFILE == "雷電" else None)   # 雷電上方「包包」照截圖量的
     P_BAG_BTN = tuple(bag) if bag else None
     P_BAG_FAV = tuple(prof["bag_fav_tab"]) if prof.get("bag_fav_tab") else None
+    P_BAG_SCROLL = tuple(prof["bag_scroll"]) if prof.get("bag_scroll") else None
 
 
 _load()
@@ -692,6 +695,74 @@ def chat_page():
     return fuel, page
 
 
+def _area_changed(before, after, x, y, half):
+    """拖曳點附近那一塊有沒有變（沒變 = 捲到底了）。"""
+    try:
+        import numpy as np
+        h, w = before.shape[:2]
+        x0, x1 = max(0, x - half), min(w, x + half)
+        y0, y1 = max(0, y - half), min(h, y + half)
+        a = before[y0:y1, x0:x1].astype("int16")
+        b = after[y0:y1, x0:x1].astype("int16")
+        return float(np.abs(a - b).mean()) > 2.0
+    except Exception:
+        return True
+
+
+def _bag_find_fuel():
+    """在包包愛心分頁找燃料。第一頁沒有、又有抓拖曳起點，就上下捲來找。
+
+    使用者要愛心放很多東西，燃料會被擠到下面。遊戲可能記住上次捲到哪，
+    所以先往上捲回頂端（邊捲邊找），再往下捲到底（邊捲邊找）。拖不動 = 到底了。
+    找不到時把「最像燃料」的那一刻畫面存起來、紀錄寫分數（使用者怕「燃料在畫面上但沒認出來」，2026.11.06r）。"""
+    best = {"score": 0.0, "img": None}
+
+    def look(screen):
+        hit = find_one(screen, "fuel_item.png")
+        if hit:
+            return hit
+        near = find_one(screen, "fuel_item.png", threshold=0.3)   # 只是拿分數，不當作找到
+        if near and near[4] > best["score"]:
+            best["score"], best["img"] = near[4], screen
+        elif best["img"] is None:
+            best["img"] = screen
+        return None
+
+    item = wait_for("fuel_item.png", timeout=4.0)
+    if item:
+        return item
+    look(grab())
+    if P_BAG_SCROLL:
+        x, y = P_BAG_SCROLL
+        d = int(rd.AREA_W * 150 / 800)                # 一次拖多遠（800 寬時 150）
+        rd.step("愛心分頁第一頁沒看到燃料，上下捲來找")
+        for direction, name in ((1, "上"), (-1, "下")):  # 往下拖 = 看上面；往上拖 = 看下面
+            for i in range(1, 7):
+                before = grab()
+                rd.drag_line(x, y, x, y + direction * d, steps=16, hold=0.03)
+                after = grab()
+                item = look(after)
+                if item:
+                    rd.step(f"往{name}捲第 {i} 次：找到燃料")
+                    return item
+                if not _area_changed(before, after, x, y, d):
+                    break                             # 到頂／到底了
+    # 還是找不到：存「最像的那一刻」，寫分數
+    path = ""
+    try:
+        os.makedirs(rd.SHOT_DIR, exist_ok=True)
+        path = os.path.join(rd.SHOT_DIR, "fail_fuel_bag.png")
+        rd.imwrite(path, best["img"] if best["img"] is not None else grab())
+    except Exception:
+        path = ""
+    sc = best["score"]
+    verdict = ("有點像但不夠像，燃料可能在畫面上卻沒認出來 → 到校正頁重抓燃料那張圖" if sc >= 0.6
+               else "看起來真的不在愛心分頁（可能沒設愛心，或這隻還沒有燃料）")
+    rd.step(f"整個愛心分頁最像燃料的只有 {sc:.2f} 分（要 {rd.MATCH_THRESHOLD:g} 以上）：{verdict}"
+            + (f"（{path}）" if path else ""))
+    return None
+
+
 def bag_fuel_full():
     """包包 → 愛心分頁 → 點燃料 → 有沒有「2000/2000」。回傳 True / False / None（看不到燃料）。"""
     if not on_main():
@@ -704,9 +775,10 @@ def bag_fuel_full():
     wait_stable(1.5)
     if P_BAG_FAV:
         click_at(P_BAG_FAV[0], P_BAG_FAV[1], wait=1.0)
-    item = wait_for("fuel_item.png", timeout=4.0)
+    item = _bag_find_fuel()
     if not item:
-        rd.step("包包愛心分頁裡找不到燃料")
+        rd.step("包包愛心分頁裡找不到燃料" + ("（上下都捲過了）" if P_BAG_SCROLL else
+                "（燃料如果在下面，到校正頁「燃料輪替」抓「包包物品格子區的正中間」，程式就會捲下去找）"))
         back_to_main()
         return None
     click_box(item, wait=1.0)
