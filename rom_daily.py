@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.11b"
+__version__ = "2026.11.11e"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -973,9 +973,15 @@ def get_rect(hwnd):
     return l, t, r - l, b - t
 
 
+STEP_TIME = False                # 燃料輪替跑的時候打開：每個步驟前面加時間（使用者要截圖 debug，2026.11.11e）
+
+
 def step(msg):
     """紀錄裡的一個步驟。任務標題縮兩格「【副本掃蕩】」，步驟縮四格「・…」，結果「→ …」。"""
-    print("    ・" + msg, flush=True)
+    if STEP_TIME:
+        print(f"    {time.strftime('%H:%M:%S')}　" + msg, flush=True)
+    else:
+        print("    ・" + msg, flush=True)
 
 
 def nap(sec):
