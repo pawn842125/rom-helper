@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.11"
+__version__ = "2026.11.11b"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -287,7 +287,7 @@ CALIB_GROUPS = [
          ("point", "party_fav_tab", "按 O：好友面板的 ❤ 分頁", True),
          ("point", "party_friend_first", "❤ 分頁裡第一個好友的頭像", True),
          ("point", "party_apply_flag", "點好友頭像後小視窗裡的旗子", True),
-         ("tmpl", "fav_tab_on.png", "好友面板切到 ❤ 分頁時：愛心＋底下那條藍色底線（被選中的樣子；燃料輪替一定要，組隊建議抓）", (52, 44), "btn", False),
+         ("tmpl", "fav_tab_on.png", "好友面板切到 ❤ 分頁時：愛心＋底下那條藍色底線（選用：程式也會直接看愛心底下有沒有藍線，通常不用抓）", (52, 44), "btn", False),
          ("tmpl", "friend_close.png", "好友面板右上角的 ✕（只框 ✕；燃料輪替一定要，組隊建議抓）", (30, 30), "btn", False),
      ]},
     {"title": "進階（通常不用動）",
