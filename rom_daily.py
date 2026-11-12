@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.11"
+__version__ = "2026.11.11b"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
