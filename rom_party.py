@@ -45,7 +45,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.11"
+__version__ = "2026.11.11b"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -203,25 +203,46 @@ def leave_party():
     return st == "out"
 
 
-def _fav_selected(screen=None):
-    """好友面板現在是不是在 ❤ 分頁（fav_tab_on.png = 愛心＋底下藍色底線）。
-    門檻拉到 0.9、而且要在 ❤ 分頁位置附近：沒選中的愛心只差一條底線，0.8 會被當成選中。"""
-    screen = grab() if screen is None else screen
-    for b in rd.find_all(screen, "fav_tab_on.png", threshold=0.9):
-        cx, cy = b[0] + b[2] // 2, b[1] + b[3] // 2
-        if not P_FAV_TAB or (abs(cx - P_FAV_TAB[0]) < 60 and abs(cy - P_FAV_TAB[1]) < 60):
-            return True
+FAV_LINE_MIN = 30                # ❤ 底下一列有幾個藍點以上算「有底線」（選中時量到 54、沒選中 0）
+
+
+def _fav_underline(screen):
+    """直接看 ❤ 分頁底下有沒有那條藍色底線（被選中的分頁才有）。不用模板，每台電腦都一樣。
+    實測（官方）：選中的分頁中心往下約 21～24 點有一條 4 點高、約 54 點寬的藍線（B>150、B−R>80）；沒選中的完全沒有藍色。"""
+    if not P_FAV_TAB or screen is None:
+        return False
+    try:
+        x, y = P_FAV_TAB
+        h, w = screen.shape[:2]
+        x0, x1 = max(0, x - 30), min(w, x + 30)
+        for yy in range(max(0, y + 8), min(h, y + 40)):
+            row = screen[yy, x0:x1].astype("int16")        # BGR
+            b, r = row[:, 0], row[:, 2]
+            if int(((b > 150) & (b - r > 80)).sum()) >= FAV_LINE_MIN:
+                return True
+    except Exception:
+        pass
     return False
+
+
+def _fav_selected(screen=None):
+    """好友面板現在是不是在 ❤ 分頁：fav_tab_on.png 比得到（門檻 0.9、在 ❤ 附近），或 ❤ 底下有藍色底線。
+
+    朋友用使用者分享的 fav_tab_on.png 在他電腦上比不到 → 明明切過去了卻點 3 次就放棄不申請（2026.11.11b）。
+    現在兩種任一個成立就算；都不成立才算沒切過去。"""
+    screen = grab() if screen is None else screen
+    if has("fav_tab_on.png"):
+        for b in rd.find_all(screen, "fav_tab_on.png", threshold=0.9):
+            cx, cy = b[0] + b[2] // 2, b[1] + b[3] // 2
+            if not P_FAV_TAB or (abs(cx - P_FAV_TAB[0]) < 60 and abs(cy - P_FAV_TAB[1]) < 60):
+                return True
+    return _fav_underline(screen)
 
 
 def open_fav_tab():
     """點 ❤ 分頁，並確認真的切過去了（使用者實測：滑鼠指到愛心但沒切過去，
     剛好打手在 All 也排第一才沒出事）。最多點 3 次，切不過去就回傳 False（不申請）。
-    還沒抓 fav_tab_on.png 的話照舊只點一下（組隊輪替的朋友不會突然不能用）。"""
-    if not has("fav_tab_on.png"):
-        rd.step("（還沒抓「❤ 分頁被選中」的圖，沒辦法確認有沒有切到 ❤；到校正頁「組隊輪替」抓）")
-        click_at(P_FAV_TAB[0], P_FAV_TAB[1])
-        return True
+    確認方法：fav_tab_on.png 或 ❤ 底下的藍色底線（不用模板也能確認）。"""
     for n in range(1, 4):
         click_at(P_FAV_TAB[0], P_FAV_TAB[1])
         deadline = time.time() + 3.0 * max(0.5, rd.SLOW)
@@ -233,7 +254,8 @@ def open_fav_tab():
             time.sleep(0.4)
         if n < 3:
             rd.step(f"點了 ❤ 但沒切過去，再點一次（第 {n + 1} 次）")
-    rd.step(f"點了 3 次還是切不到 ❤ 分頁，這次不申請（{dump_fail('friend_fav')}）")
+    rd.step("點了 3 次還是認不出切到 ❤ 分頁（❤ 底下沒看到藍線，圖也比不到），這次不申請"
+            f"（如果其實有切過去：到校正頁重抓「組隊輪替」的 ❤ 分頁位置，點在愛心正中間；{dump_fail('friend_fav')}）")
     return False
 
 
@@ -494,7 +516,7 @@ def _run_loop(alts, states, max_alts, once):
 F_WAIT, F_IN, F_DONE, F_ERR = "等空位", "吸燃料中", "完成", "異常"
 FUEL_TEMPLATES = ["settings_game.png", "back_login.png", "title_start.png", "charsel_start.png", "leader_star.png",
                   "follow_off.png", "follow_on.png", "chat_sys_tab.png", "chat_fuel.png", "chat_close.png",
-                  "fuel_item.png", "fuel_full.png", "fav_tab_on.png", "friend_close.png",
+                  "fuel_item.png", "fuel_full.png", "friend_close.png",
                   "leave_party.png", "create_party.png", "count_full.png"]
 
 
@@ -989,13 +1011,13 @@ def fuel_run(leader=None, accounts=None, slots=None):
 def _fuel_ready(kind):
     missing = [f for f in FUEL_TEMPLATES if not has(f)]
     if missing:
-        party_group = {"fav_tab_on.png", "friend_close.png"}
+        party_group = {"friend_close.png"}
         a = [f for f in missing if f not in party_group]
         b = [f for f in missing if f in party_group]
         print(f"【{kind}】燃料輪替缺少模板："
               + (("、".join(a) + "（校正頁「燃料輪替」那組）") if a else "")
               + ("；" if a and b else "")
-              + (("、".join(b) + "（校正頁「組隊輪替」那組：❤ 分頁被選中、好友面板的 ✕）") if b else ""))
+              + (("、".join(b) + "（校正頁「組隊輪替」那組：好友面板的 ✕）") if b else ""))
         return False
     lacks = [n for n, pt in zip((1, 2, 3), P_CHAR_SLOTS) if not pt]
     if lacks or not P_CHAT_OPEN or not P_BAG_FAV or not P_AVATAR:
