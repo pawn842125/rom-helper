@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.11b"
+__version__ = "2026.11.11e"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -465,7 +465,8 @@ UPDATE_REPO = "pawn842125/rom-helper"
 UPDATE_BRANCH = "main"
 UPDATE_FILES = ["rom_daily.py", "rom_party.py", "gui.pyw", "account_switch.pyw"]
 UPDATE_PAGE = f"https://github.com/{UPDATE_REPO}"
-_RAW = f"https://raw.githubusercontent.com/{UPDATE_REPO}/{UPDATE_BRANCH}/"
+_RAW_BASE = f"https://raw.githubusercontent.com/{UPDATE_REPO}/"   # + 快照編號/檔名
+_RAW = _RAW_BASE + f"{UPDATE_BRANCH}/"
 _API = f"https://api.github.com/repos/{UPDATE_REPO}/contents/"
 TOKEN_PATH = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local"),
                           "ROM_helper", "github_token.bin")
@@ -517,17 +518,44 @@ def remote_info():
     return json.loads(_http(_RAW + f"version.json?t={int(_t.time())}").decode("utf-8"))
 
 
+def fetch_published(path, sha256, commit=None, say=print):
+    """抓 GitHub 上的一個檔案，核對 sha256。依序試：
+    1. 發布時記下的快照（raw/<commit>/檔名）：指定快照的網址永遠不會被快取成舊的、也沒有次數限制
+    2. 一般管道（raw/main，加時間參數）：剛發布完可能還是舊的（GitHub 快取約 5 分鐘）
+    3. GitHub API（不走快取，但沒登入每小時 60 次）
+    都對不上才丟錯。朋友實測：剛發布完更新 → 「下載不完整（檢查碼對不上）」（2026.11.11c）。"""
+    import hashlib, time as _t
+    tries = []
+    if commit:
+        tries.append(("快照", lambda: _http(_RAW_BASE + f"{commit}/" + _q(path))))
+    tries.append(("一般管道", lambda: _http(_RAW + _q(path) + f"?t={int(_t.time())}")))
+    tries.append(("GitHub API", lambda: _http(_API + _q(path) + f"?ref={UPDATE_BRANCH}",
+                                              headers={"Accept": "application/vnd.github.raw+json"})))
+    last, mismatch = "", False
+    for k, (how, get) in enumerate(tries):
+        try:
+            data = get()
+        except Exception as e:
+            last = last if mismatch else f"{how}下載失敗：{e}"
+            continue
+        if hashlib.sha256(data).hexdigest() == sha256:
+            if k:
+                say(f"  （{path} 用{how}抓到正確的）")
+            return data
+        last, mismatch = "檢查碼對不上", True
+        if k + 1 < len(tries):
+            say(f"  {path}：{last}（GitHub 可能還沒更新完），換別的方式再抓一次…")
+    raise RuntimeError(f"{path} 下載不完整（{last}），請過 10 分鐘再試")
+
+
 def download_update(info, say=print):
     """下載新版的每個檔案：核對 sha256（確認下載完整）、試著編譯（確認程式沒壞）。全部沒問題才回傳。"""
-    import hashlib, time as _t
     files = {}
     for name, meta in info.get("files", {}).items():
         if name not in UPDATE_FILES:                # 只收認得的檔名，不會把奇怪的東西寫進資料夾
             continue
         say(f"下載 {name} …")
-        data = _http(_RAW + f"{name}?t={int(_t.time())}")
-        if hashlib.sha256(data).hexdigest() != meta.get("sha256"):
-            raise RuntimeError(f"{name} 下載不完整（檢查碼對不上），請稍後再試")
+        data = fetch_published(name, meta.get("sha256"), info.get("commit"), say)
         compile(data.decode("utf-8"), name, "exec")
         files[name] = data
     if "gui.pyw" not in files:
@@ -599,11 +627,11 @@ def gh_put(name, data, token, message):
     body = {"message": message, "content": base64.b64encode(data).decode("ascii"), "branch": UPDATE_BRANCH}
     if cur and cur.get("sha"):
         body["sha"] = cur["sha"]
-    gh_api(name, token, "PUT", body)
+    return gh_api(name, token, "PUT", body)
 
 
 def gh_delete(name, sha, token, message):
-    gh_api(name, token, "DELETE", {"message": message, "sha": sha, "branch": UPDATE_BRANCH})
+    return gh_api(name, token, "DELETE", {"message": message, "sha": sha, "branch": UPDATE_BRANCH})
 
 
 def git_sha(data):
@@ -646,12 +674,9 @@ def sync_shared(info, say=print):
             if os.path.exists(dst):
                 continue                            # 自己已經有：不動（自己抓的比較準）
             try:
-                data = _http(_RAW + _q(f"templates/{prof}/{n}"))
+                data = fetch_published(f"templates/{prof}/{n}", sha, info.get("commit"), lambda *_: None)
             except Exception as e:
-                say(f"  共用模板 {prof}/{n} 下載失敗：{e}")
-                continue
-            if hashlib.sha256(data).hexdigest() != sha:
-                say(f"  共用模板 {prof}/{n} 下載不完整，跳過")
+                say(f"  共用模板 {prof}/{n} 下載失敗或不完整，跳過（{e}）")
                 continue
             with open(dst, "wb") as f:
                 f.write(data)
@@ -2552,11 +2577,18 @@ class App:
             import hashlib, time as _t
             print(f"===== 發布 {__version__} 到 {UPDATE_PAGE} =====")
             msg = f"發布 {__version__}"
+            commit = None                             # 最後一次上傳後的快照編號（包含前面傳的所有檔案）
+
+            def put(path, data):
+                nonlocal commit
+                r = gh_put(path, data, token, msg)
+                c = (r or {}).get("commit", {}).get("sha") if isinstance(r, dict) else None
+                commit = c or commit
             for n in names:
                 print(f"  上傳 {n} …", flush=True)
-                gh_put(n, datas[n], token, msg)
+                put(n, datas[n])
             print("  更新說明頁（README.md）…", flush=True)
-            gh_put("README.md", GITHUB_README.encode("utf-8"), token, msg)
+            put("README.md", GITHUB_README.encode("utf-8"))
             manifest = {}
             for prof, files in tmpl.items():
                 remote = gh_api(f"templates/{prof}", token) or []
@@ -2566,17 +2598,22 @@ class App:
                 print(f"  {prof} 模板：共 {len(files)} 張，要上傳 {len(up)} 張（新的或改過的）、"
                       f"刪掉 {len(gone)} 張（你已經刪掉的）", flush=True)
                 for k, n in enumerate(up, 1):
-                    gh_put(f"templates/{prof}/{n}", files[n], token, msg)
+                    put(f"templates/{prof}/{n}", files[n])
                     if k % 10 == 0 or k == len(up):
                         print(f"    已上傳 {k}/{len(up)}", flush=True)
                 for n in gone:
-                    gh_delete(f"templates/{prof}/{n}", rsha[n], token, msg)
+                    r = gh_delete(f"templates/{prof}/{n}", rsha[n], token, msg)
+                    c = (r or {}).get("commit", {}).get("sha") if isinstance(r, dict) else None
+                    commit = c or commit
                 manifest[prof] = {n: hashlib.sha256(d).hexdigest() for n, d in files.items()}
             info = {"version": __version__, "notes": notes,
                     "published": _t.strftime("%Y-%m-%d %H:%M"),
                     "files": {n: {"sha256": hashlib.sha256(datas[n]).hexdigest(), "size": len(datas[n])}
                               for n in names},
-                    "templates": manifest, "points": points}
+                    "templates": manifest, "points": points,
+                    "commit": commit}                 # 朋友下載時指定這個快照，不會拿到快取的舊檔
+            if commit:
+                print(f"  這次的快照編號：{commit[:10]}…", flush=True)
             print("  最後上傳版本資訊（version.json）：朋友從這一刻開始收得到更新", flush=True)
             gh_put("version.json", json.dumps(info, ensure_ascii=False, indent=1).encode("utf-8"), token, msg)
             print(f"→ 發布完成：{__version__}。朋友按「檢查更新」就會拿到。")
