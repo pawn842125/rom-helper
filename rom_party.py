@@ -45,7 +45,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.11e"
+__version__ = "2026.11.19"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
