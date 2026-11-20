@@ -27,7 +27,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.11e"
+__version__ = "2026.11.19"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -315,6 +315,10 @@ SETTINGS = [
     ("daily_key",        "開「日常」面板的快捷鍵",     str,   "i"),
     ("pet_key",          "開「寵物手冊」的快捷鍵",     str,   "f1"),
     ("dungeon_key",      "開「副本」面板的快捷鍵",     str,   "u"),
+    ("key_dungeon",      "沒吃快捷鍵時（雷電）開副本按的鍵（例 j,k；空白=用點的）", str, ""),
+    ("key_pet",          "沒吃快捷鍵時（雷電）開寵物手冊按的鍵（例 f1；空白=用點的）", str, ""),
+    ("key_ticket",       "沒吃快捷鍵時（雷電）用掃蕩券按的鍵（例 f2；空白=用點的）", str, ""),
+    ("key_exchange",     "沒吃快捷鍵時（雷電）開交易所按的鍵（例 1；空白=用點的）", str, ""),
     ("max_sweeps",       "副本掃蕩最多點幾次",         int,   14),
     ("pet_mode",         "寵物打工方式（grid=九宮格 / detect=辨識）", str, "grid"),
     ("match_threshold",  "比對門檻（0.7~0.95）",       float, 0.80),
@@ -1994,9 +1998,10 @@ class App:
     def clear_today(self):
         if messagebox.askyesno("清除今天的完成紀錄",
                                "程式會忘記今天哪些帳號、哪些任務已經做完，下次全部重新檢查。\n"
-                               "（在遊戲裡手動登出換了帳號、但沒重開遊戲時用）\n\n要清除嗎？"):
+                               "兌換序號的紀錄也會一起清掉（已經換過的，遊戲會說已兌換過，不會有損失）。\n"
+                               "（在遊戲裡手動登出換了帳號、燃料輪替換過角色、但沒重開遊戲時用）\n\n要清除嗎？"):
             rd.clear_today()
-            self.log("已清除今天的完成紀錄，下次會全部重新檢查。\n", "head")
+            self.log("已清除今天的完成紀錄和兌換序號紀錄，下次會全部重新檢查。\n", "head")
 
     def _build_party(self):
         f = self.tab_party
