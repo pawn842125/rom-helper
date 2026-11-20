@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.11e"
+__version__ = "2026.11.19"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -128,6 +128,11 @@ RAW_MOUSE = False                # 拖曳時用「真正的滑鼠移動訊號」
 QUICK_NO_REMIND = None           # 快速完成偶爾跳的確認視窗：「不再提示」前面的方框
 QUICK_CONFIRM_OK = None          # 同一個視窗的綠色「確定」
 ABANDON_OK = None                # 「是否要放棄懸賞任務？」視窗的綠色「確定」
+# 沒開「遊戲吃快捷鍵」時（雷電），個別動作也可以改按鍵（配合雷電的按鍵對應）。空白 = 照舊用點的（2026.11.19）
+KEY_DUNGEON = ""                 # 開副本，可以好幾個鍵依序按，例如 "j,k"（J 開更多、K 點副本）
+KEY_PET = ""                     # 開寵物手冊，例如 "f1"
+KEY_TICKET = ""                  # 用時空矩陣掃蕩券，例如 "f2"
+KEY_EXCHANGE = ""                # 開交易所，例如 "1"
 TICKET_KEY = "f2"                # 時空矩陣掃蕩券放在快捷列 F2（官方按這個鍵）
 TICKET_SLOT = None               # 快捷列 F2 那一格（雷電沒快捷鍵時點這裡）
 EXCHANGE_SLOT = None             # 快捷列上「交易所」那一格（一鍵上架用；官方雷電都放第 1 格）
@@ -211,7 +216,7 @@ pyautogui.PAUSE = 0.03
 _TUNABLES = ["WINDOW_TITLE", "WINDOW_EXCLUDE", "WINDOW_EXES", "HOTKEYS", "USE_ESC", "WORK_W", "WORK_H",
              "USE_RENDER_CHILD", "RENDER_CHILD_TITLE", "MATCH_THRESHOLD",
              "SAFE_CLICK", "SCROLL_POINT", "SCROLL_POINT_ALT", "LIST_TOP", "LIST_BOTTOM",
-             "DAILY_KEY", "PET_KEY", "PET_TAB", "PET_SLOT", "WAKE_CLICK", "DAILY_BTN", "TICKET_KEY", "TICKET_SLOT", "EXCHANGE_SLOT", "RELIST_MAX", "RED_DOT_SKIP", "REMEMBER_DONE", "REDEEM_SKIP_DRAGS", "QUICK_NO_REMIND", "QUICK_CONFIRM_OK", "ABANDON_OK", "RAW_MOUSE", "LIST_CHECK_REGION", "LIST_MOVE_TOL", "PET_GIFT_MIN_X",
+             "DAILY_KEY", "PET_KEY", "KEY_DUNGEON", "KEY_PET", "KEY_TICKET", "KEY_EXCHANGE", "PET_TAB", "PET_SLOT", "WAKE_CLICK", "DAILY_BTN", "TICKET_KEY", "TICKET_SLOT", "EXCHANGE_SLOT", "RELIST_MAX", "RED_DOT_SKIP", "REMEMBER_DONE", "REDEEM_SKIP_DRAGS", "QUICK_NO_REMIND", "QUICK_CONFIRM_OK", "ABANDON_OK", "RAW_MOUSE", "LIST_CHECK_REGION", "LIST_MOVE_TOL", "PET_GIFT_MIN_X",
              "DUNGEON_KEY", "DUNGEON_BTN", "DUNGEON_LIST_X", "DUNGEON_LIST_TOP",
              "DUNGEON_LIST_BOTTOM", "DUNGEON_TAB_Y", "DUNGEON_FIRST_TAB", "DUNGEON_LAST_TAB", "STRIP_DRAG_END", "MAX_SWEEPS",
              "SETTINGS_BTN", "REDEEM_INPUT_DY", "WEEKLY_TAB", "CLAIM_WEEKLY",
@@ -326,6 +331,8 @@ def _load_config():
                             ("match_threshold", "MATCH_THRESHOLD", float),
                             ("pet_mode", "PET_MODE", str),
                             ("dungeon_key", "DUNGEON_KEY", str),
+                            ("key_dungeon", "KEY_DUNGEON", str), ("key_pet", "KEY_PET", str),
+                            ("key_ticket", "KEY_TICKET", str), ("key_exchange", "KEY_EXCHANGE", str),
                             ("dungeon_list_x", "DUNGEON_LIST_X", int),
                             ("dungeon_list_top", "DUNGEON_LIST_TOP", int),
                             ("dungeon_list_bottom", "DUNGEON_LIST_BOTTOM", int),
@@ -1950,6 +1957,8 @@ def open_pet_screen():
         pyautogui.press(PET_KEY)
         nap(0.8)
         wait_stable(T_PANEL_MAX)
+    elif KEY_PET:
+        press_keys(KEY_PET, "開寵物手冊")
     if on_main() and PET_SLOT:                     # 沒快捷鍵（或沒反應）→ 點快捷列格子
         step("點快捷列的寵物箱開寵物手冊")
         click_at(PET_SLOT[0], PET_SLOT[1], wait=T_PANEL_MAX)
@@ -2287,6 +2296,22 @@ def strip_scroll_left(y):
     return strip_changed(before, grab())
 
 
+def press_keys(spec, what):
+    """依序按設定裡的按鍵（"j,k" 或 "j k"），每按一個等畫面穩定。認不得的鍵名寫紀錄、不按。回傳有沒有按到。"""
+    keys = [k for k in re.split(r"[,\s]+", (spec or "").strip().lower()) if k]
+    pressed = False
+    for k in keys:
+        if k not in pyautogui.KEYBOARD_KEYS:
+            step(f"⚠ 設定的按鍵「{k}」認不得，跳過（設定頁改成像 j、f1、1 這樣）")
+            continue
+        step(f"按 {k.upper()}（{what}）")
+        pyautogui.press(k)
+        nap(0.8)
+        wait_stable(T_PANEL_MAX)
+        pressed = True
+    return pressed
+
+
 def open_dungeon():
     """按 U（或 更多 → 副本）開副本面板。回傳 (有沒有開起來, 失敗原因)。"""
     if not on_main() and not back_to_main():
@@ -2296,6 +2321,15 @@ def open_dungeon():
         pyautogui.press(DUNGEON_KEY)
         nap(0.6)
         wait_stable(T_PANEL_MAX)
+    elif KEY_DUNGEON:
+        press_keys(KEY_DUNGEON, "開副本")             # 例如 J 開更多、K 點副本（雷電的按鍵對應）
+        if on_main():
+            # 不改用點的：J 可能已經把「更多」打開了，再點「更多」會把它關掉、接著點到主畫面別的東西
+            shot = dump_fail("dg_keys")
+            safe_click(1)                              # 點空地收起可能開著的「更多」選單
+            back_to_main()
+            return False, (f"按了 {KEY_DUNGEON.upper()} 副本面板沒打開（雷電的按鍵對應位置對不對？"
+                           f"可以在雷電裡手動按按看；{shot}）")
     if on_main():
         if not HOTKEYS and not DUNGEON_BTN:
             return False, "這個環境沒有快捷鍵，但「更多裡的副本」位置還沒校正"
@@ -2599,7 +2633,8 @@ def find_sweep_button(screen=None):
 
 def do_dungeon(idx):
     """U → 狂想寓言 → 這個帳號設定的等級（預設 Lv.20）→ 掃蕩到紅字。回傳 (掃滿了嗎, 訊息)。"""
-    step("打開副本面板" + (f"（按 {DUNGEON_KEY.upper()}）" if HOTKEYS else "（點「更多」→「副本」）"))
+    step("打開副本面板" + (f"（按 {DUNGEON_KEY.upper()}）" if HOTKEYS else
+                          f"（按 {KEY_DUNGEON.upper()}）" if KEY_DUNGEON else "（點「更多」→「副本」）"))
     opened, why = open_dungeon()
     if not opened:
         shot = dump_fail(f"win{idx:02d}_dg_open")
@@ -2806,6 +2841,9 @@ def do_ticket(idx):
     if HOTKEYS:
         step(f"F2 是掃蕩券，按 {TICKET_KEY.upper()} 使用")
         pyautogui.press(TICKET_KEY)
+    elif KEY_TICKET:
+        step("F2 是掃蕩券，用設定的按鍵使用")
+        press_keys(KEY_TICKET, "用掃蕩券")
     else:
         step(f"F2 是掃蕩券，點那一格（{sx},{sy}）使用")
         click_at(sx, sy)
@@ -3184,15 +3222,20 @@ def do_relist(idx):
     if not EXCHANGE_SLOT:
         return False, "快捷列上「交易所」那一格的位置還沒校正"
 
-    step(f"點快捷列的交易所（{EXCHANGE_SLOT[0]},{EXCHANGE_SLOT[1]}）")
-    click_at(EXCHANGE_SLOT[0], EXCHANGE_SLOT[1], wait=T_PANEL_MAX)
+    def open_exchange():
+        if KEY_EXCHANGE and not HOTKEYS:
+            press_keys(KEY_EXCHANGE, "開交易所")
+        else:
+            step(f"點快捷列的交易所（{EXCHANGE_SLOT[0]},{EXCHANGE_SLOT[1]}）")
+            click_at(EXCHANGE_SLOT[0], EXCHANGE_SLOT[1], wait=T_PANEL_MAX)
+    open_exchange()
     # 使用者實測：視窗 3、4 點了交易所沒打開（失敗截圖是主畫面），手動一點就開 → 點一下偶爾被吃掉。
     # 先等 4 秒；沒出現「我要出售」而且還在主畫面，就再點一次，再等最多 8 秒（2026.11.06p）。
     tab = wait_for("exchange_sell_tab.png", timeout=4.0)
     if not tab:
         if on_main():
-            step("點了交易所沒反應（還在主畫面），再點一次")
-            click_at(EXCHANGE_SLOT[0], EXCHANGE_SLOT[1], wait=T_PANEL_MAX)
+            step("開交易所沒反應（還在主畫面），再試一次")
+            open_exchange()
         else:
             step("交易所還沒出現「我要出售」，再等一下")
         tab = wait_for("exchange_sell_tab.png", timeout=8.0)
@@ -3311,9 +3354,14 @@ def mark_redeemed(code, key=None):
 
 
 def clear_today():
-    """清掉今天「做完了」的紀錄（兌換序號的紀錄不清）。"""
+    """清掉今天「做完了」的紀錄，連兌換序號的紀錄一起清（2026.11.11f，使用者要求）。
+
+    兌換紀錄是按下兌換就記（不知道遊戲有沒有真的換到），而且跟著遊戲視窗記：
+    剪貼簿被換掉沒換到、或燃料輪替在同一個視窗換了角色，都會被誤記成換過。清掉後真的換過的
+    遊戲會說「已兌換過」，只是多跑一次。"""
     st = _state()
     st["done"] = {}
+    st["redeem"] = {}
     _save_state(st)
 TASK_LABELS = {"pet": "寵物打工", "comm": "任務委託板", "dungeon": "副本掃蕩", "ticket": "時空矩陣掃蕩券",
                "claim": "領取獎勵", "bonus": "每日福利", "redeem": "兌換序號", "relist": "一鍵上架"}
