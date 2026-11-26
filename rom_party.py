@@ -45,7 +45,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.19"
+__version__ = "2026.11.26"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -587,6 +587,609 @@ def press_until_moved(tmpl, label, moved, timeout=60.0, first_wait=1.5, gap=3.0)
     return False
 
 
+# ---------------------------------------------------------------------------
+# 萬物石換材料（防禦手套）：升級（用萬物之石）→ 交易所上架 → 移除升級狀態拿回材料 → 煤炭鋼鐵存倉庫（2026.11.25）
+# ---------------------------------------------------------------------------
+
+WAN_TEMPLATES = ["wan_glove.png", "wan_enhance.png", "wan_stone_on.png", "wan_upgrade_btn.png", "wan_upgraded.png",
+                 "wan_glove_up.png", "wan_list_up.png", "wan_list_btn.png", "wan_remove.png",
+                 "wan_npc.png", "wan_storage_btn.png", "wan_storage_title.png", "wan_coal.png", "wan_steel.png",
+                 "exchange_sell_tab.png"]
+WAN_POINTS = ["wan_upgrade_tab", "wan_stone_box", "wan_shared_tab"]
+_WAN_EX_KEY = ""                 # 萬物石開交易所按的鍵（萬物石分頁設定，預設 1；空白＝點快捷列）
+
+
+WAN_MOVE_TIME = 0.25             # 萬物石：滑鼠滑到按鈕花幾秒（以前 0.1 秒，像瞬移）
+WAN_HOVER = 0.12                 # 萬物石：移到按鈕上先停幾秒再點（有些介面要先停在上面才收點擊）
+
+
+class _HoverMoves:
+    """萬物石跑的時候，滑鼠慢一點滑過去、停一下再點（使用者：滑鼠像瞬移太快；先只改萬物石，2026.11.25k）。
+    程式的點擊都是先 pyautogui.moveTo 再 click，所以只要換掉 moveTo；結束（含中止、出錯）換回來。"""
+
+    def __enter__(self):
+        self.orig = pyautogui.moveTo
+
+        def move(*a, **k):
+            k["duration"] = max(WAN_MOVE_TIME, float(k.get("duration") or 0))
+            r = self.orig(*a, **k)
+            time.sleep(WAN_HOVER)
+            return r
+        pyautogui.moveTo = move
+        return self
+
+    def __exit__(self, *exc):
+        pyautogui.moveTo = self.orig
+        return False
+
+
+class WanStop(Exception):
+    """萬物石流程要整個停下來（訊息給使用者看）。"""
+
+
+def _wan_point(key):
+    v = rd._read_json(rd.CONFIG_PATH).get(key)
+    return tuple(v) if v else None
+
+
+def _wan_need(tmpl, timeout, what, seen=None):
+    """等某張圖出現：看到就寫「seen（幾分）」；沒出現就停，寫「最像幾分」＋存截圖。
+    分數很低＝畫面根本沒出現；0.6～0.8＝畫面有但圖比不到，要重抓那張（使用者要每一步都寫清楚好 debug）。"""
+    box = wait_for(tmpl, timeout=timeout)
+    if not box:
+        near = find_one(grab(), tmpl, threshold=0.3)
+        sc = near[4] if near else 0.0
+        hint = "（畫面有但圖比不到，建議重抓這張）" if sc >= 0.6 else ""
+        raise WanStop(f"{what}（{tmpl} 最像 {sc:.2f} 分，要 {rd.MATCH_THRESHOLD:g}）{hint}"
+                      f"（{dump_fail('wan_' + tmpl[4:-4])}）")
+    if seen:
+        rd.step(f"{seen}（{box[4]:.2f} 分）")
+    return box
+
+
+def _wan_dclick(box):
+    """點兩下（煤炭、鋼鐵在倉庫畫面要點兩下才會存進去）。"""
+    cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
+    pyautogui.moveTo(rd.AREA_X + cx, rd.AREA_Y + cy, duration=0.1)
+    pyautogui.click(clicks=2, interval=0.15)
+    rd.nap(1.2)
+
+
+def _wan_right(tmpl):
+    """倉庫畫面右半邊（包包那邊）的這張圖；左邊倉庫裡也有煤炭鋼鐵，不能點到那邊。"""
+    for b in rd.find_all(grab(), tmpl):
+        if b[0] + b[2] // 2 > rd.AREA_W * 0.5:
+            return b
+    return None
+
+
+def _wan_scroll_find(tmpl, name):
+    """包包第一頁沒看到就往下捲來找（使用者：手套不在第一頁，2026.11.25g）。
+    只往下捲：點「裝備」分頁時清單就會回到最上面（使用者說的，2026.11.25h）。邊捲邊找，拖不動＝到底。
+    拖曳起點用萬物石自己的 wan_bag_scroll，沒抓就借燃料輪替的 bag_scroll。"""
+    if find_one(grab(), tmpl):
+        return True
+    pt = _wan_point("wan_bag_scroll") or (tuple(P_BAG_SCROLL) if P_BAG_SCROLL else None)
+    if not pt:
+        rd.step(f"第一頁沒看到{name}，但還沒校正「包包格子區的正中間」，沒辦法往下捲")
+        return False
+    x, y = pt
+    d = int(rd.AREA_W * 150 / 800)
+    rd.step(f"第一頁沒看到{name}，往下捲來找")
+    for i in range(1, 13):                             # 往上拖＝清單往下捲
+        before = grab()
+        rd.drag_line(x, y, x, y - d, steps=16, hold=0.03)
+        rd.nap(0.6)
+        after = grab()
+        hit = find_one(after, tmpl)
+        if hit:
+            rd.step(f"往下捲第 {i} 次：找到{name}（{hit[4]:.2f} 分）")
+            return True
+        if not _area_changed(before, after, x, y, d):
+            rd.step(f"往下捲第 {i} 次：拖不動了（到底了）")
+            break
+    return False
+
+
+def _wan_pick_plain_glove():
+    """包包裡可能同時有「沒升級的那疊」和「升級過的」（上一輪中途停下來時）。每個候選都比一下像不像升級過的，
+    挑最不像升級過的那個（使用者截圖：21 雙疊在一格；2026.11.25c）。"""
+    screen = grab()
+    cands = rd.find_all(screen, "wan_glove.png")
+    if len(cands) <= 1:
+        g = cands[0] if cands else find_one(screen, "wan_glove.png")
+        rd.step(f"找到防禦手套，點它（{g[4]:.2f} 分）")
+        return g
+    h, w = screen.shape[:2]
+    best, best_up = None, 9.0
+    for c in cands:
+        x0, y0 = max(0, c[0] - 12), max(0, c[1] - 12)
+        x1, y1 = min(w, c[0] + c[2] + 12), min(h, c[1] + c[3] + 12)
+        up = find_one(screen[y0:y1, x0:x1], "wan_glove_up.png", threshold=0.3)
+        sc = up[4] if up else 0.0
+        if sc < best_up:
+            best, best_up = c, sc
+    rd.step(f"包包裡有 {len(cands)} 個防禦手套，挑沒升級的那個（像升級過的只有 {best_up:.2f} 分），點它")
+    return best
+
+
+def _ink(region):
+    """數「筆畫」點：比這一塊的背景（中位數）暗 40 以上、而且是灰黑色（不是彩色外框）。
+    以前用固定「亮度 <140」：遊戲實際大小（800 寬）下 I 只有一兩點、顏色淡，會數到 0（使用者實測「要 0 以上」，2026.11.25i）。"""
+    if region is None or not region.size:
+        return 0
+    r = region.astype("int16")
+    g = r.mean(axis=2)
+    sat = r.max(axis=2) - r.min(axis=2)
+    import numpy as np
+    return int(((g < np.median(g) - 40) & (sat < 45)).sum())
+
+
+def _tmpl_of(box, fallback):
+    try:
+        return rd.load_template(box[5])
+    except Exception:
+        return rd.load_template(fallback)
+
+
+def _col_ink(region):
+    """每一欄有幾個「明顯的筆畫點」：比這一塊最亮的背景（第 90 百分位）暗 70 以上、而且是灰黑色。
+    用最亮背景當基準：框裡留白多寡不影響（用中位數的話，留白多會把字邊緣的淡灰也算進去，「套」和 I 中間的空隙就被填掉）。"""
+    import numpy as np
+    r = region.astype("int16")
+    g = r.mean(axis=2)
+    sat = r.max(axis=2) - r.min(axis=2)
+    m = (g < np.percentile(g, 90) - 70) & (sat < 45)
+    return m.sum(axis=0), m
+
+
+def _i_segment(tmpl):
+    """從「套I」那張圖自己找出 I 在哪幾欄：最右邊一段筆畫，前面隔至少一欄空白（跟「套」分開）、
+    很細（≤ 寬 15%）、在右半邊、夠高（≥ 圖高 35%）。找不到＝圖沒框到 I。回傳 (起, 迄, 筆畫點) 或 None。"""
+    import numpy as np
+    cols, m = _col_ink(tmpl)
+    w, h = len(cols), tmpl.shape[0]
+    segs, x = [], 0
+    while x < w:
+        if cols[x] > 0:
+            st = x
+            while x < w and cols[x] > 0:
+                x += 1
+            segs.append((st, x - 1))
+        else:
+            x += 1
+    if len(segs) < 2:
+        return None
+    st, en = segs[-1]
+    gap = st - segs[-2][1] - 1
+    rows = np.where(m[:, st:en + 1].any(axis=1))[0]
+    tall = (rows.max() - rows.min() + 1) if len(rows) else 0
+    text_rows = np.where(m[:, :st].any(axis=1))[0]            # 左邊「套」字的高度
+    text_h = (text_rows.max() - text_rows.min() + 1) if len(text_rows) else h
+    # I 的高度跟「字」比，不跟整張圖比：使用者框高 24、上下留白多，I 只有 8 格（套 15 格）→ 跟圖比會誤判找不到（2026.11.25m）
+    if gap >= 1 and (en - st + 1) <= max(2, int(w * 0.15)) and st >= w * 0.55 and tall >= text_h * 0.35:
+        return st, en, int(cols[st:en + 1].sum())
+    return None
+
+
+def _wan_has_I(screen, box):
+    """上架視窗標題「套I」：從模板找出 I 在哪幾欄，只看遊戲畫面那幾欄有沒有筆畫（要有模板的一半以上）。
+    用使用者真實截圖測六種框法（I 貼邊／右邊留白／留很多白／框整串）：有 I 都通過、把 I 擦掉都是 0 點；
+    沒框到 I、只框半個套 → 找不到 I，叫他重抓（2026.11.25l）。
+    回傳 (是不是, 這次的點, 模板的點)；模板的點是 0 代表那張圖沒框到 I。"""
+    import cv2
+    tmpl = _tmpl_of(box, "wan_list_up.png")
+    seg = _i_segment(tmpl)
+    if not seg:
+        return False, 0, 0
+    st, en, T = seg
+    x, y, w, h = box[0], box[1], box[2], box[3]
+    region = screen[y:y + h, x:x + w]
+    if region.shape[:2] != tmpl.shape[:2]:
+        region = cv2.resize(region, (tmpl.shape[1], tmpl.shape[0]), interpolation=cv2.INTER_AREA)
+    cols, _ = _col_ink(region)
+    S = int(cols[st:en + 2].sum())                 # 右邊多看一欄（比對位置差一點也沒關係）
+    return S >= 0.5 * T, S, T
+
+
+def _icon_spot(img):
+    """手套格子右上角放「I」的那一小塊（實測 I 在格子寬 82～96%、高 6～32% 的位置）。"""
+    h, w = img.shape[:2]
+    return img[int(h * 0.05):int(h * 0.34), int(w * 0.80):int(w * 0.97)]
+
+
+def _wan_icon_has_I(screen, box):
+    """交易所清單裡這格手套右上角有沒有升級的「I」。實測：升級過 10～30 點、沒升級那疊 0 點。
+    回傳 True／False，模板右上角沒框到 I（看不出來）回傳 None。"""
+    tmpl = _tmpl_of(box, "wan_glove_up.png")
+    T = _ink(_icon_spot(tmpl))
+    if T == 0:
+        return None
+    S = _ink(_icon_spot(screen[box[1]:box[1] + box[3], box[0]:box[0] + box[2]]))
+    S = int(round(S * tmpl.shape[0] * tmpl.shape[1] / max(1, box[2] * box[3])))
+    return S >= 0.5 * T
+
+
+def _wan_upgrade():
+    """包包 → 裝備分頁 → 防禦手套 → 強化 → 升級 → 勾萬物之石 → 升級 → 確認變成「防禦手套I」。"""
+    if not on_main():
+        back_to_main()
+    if rd.HOTKEYS:
+        rd.step(f"打開包包（按 {BAG_KEY.upper()}）")
+        pyautogui.press(BAG_KEY)
+        rd.nap(0.8)
+    elif P_BAG_BTN:
+        rd.step("打開包包（點包包按鈕）")
+        click_at(P_BAG_BTN[0], P_BAG_BTN[1], wait=rd.T_PANEL_MAX)
+    wait_stable(1.5)
+    # 包包打開就是 All 分頁；手套存進倉庫再拿出來會排在第一排（使用者說的）。不點「裝備」分頁：點了反而看不到（2026.11.25j）
+    rd.step("在包包 All 第一頁找防禦手套")
+    if not wait_for("wan_glove.png", timeout=3.0) and not _wan_scroll_find("wan_glove.png", "防禦手套"):
+        _wan_need("wan_glove.png", 0.5, "包包裡找不到防禦手套（已經捲到底了；手套存進倉庫再拿出來會排在第一排）")
+    g = _wan_pick_plain_glove()
+    click_box(g, wait=1.0)
+    e = _wan_need("wan_enhance.png", 4.0, "點了手套但沒看到「強化」按鈕", "看到「強化」，點它")
+    click_box(e, wait=rd.T_PANEL_MAX)
+    up = _wan_point("wan_upgrade_tab")
+    rd.step("點左邊的「升級」")
+    click_at(up[0], up[1], wait=1.5)
+    on = wait_for("wan_stone_on.png", timeout=2.0)
+    if not on:
+        box = _wan_point("wan_stone_box")
+        rd.step("「使用萬物之石」還沒勾，勾起來")
+        click_at(box[0], box[1], wait=1.0)
+        _wan_need("wan_stone_on.png", 3.0, "勾了「使用萬物之石」但沒看到打勾", "看到已經打勾")
+    else:
+        rd.step(f"「使用萬物之石」已經勾著（{on[4]:.2f} 分）")
+    # 沒勾的時候按鈕是「購買材料」，只認得「升級」這張圖，不會按到購買材料
+    b = _wan_need("wan_upgrade_btn.png", 3.0, "沒看到黃色「升級」按鈕（萬物之石沒勾到、或萬物石不夠變成購買材料？）",
+                  "看到「升級」，按下去")
+    click_box(b, wait=1.5)
+    _wan_need("wan_upgraded.png", 6.0, "按了升級，但沒看到手套變成「防禦手套I」（萬物石或 Zeny 不夠？）",
+              "手套升到 I 了")
+    rd.step("關掉強化畫面")
+    back_to_main()
+
+
+def _wan_remove():
+    """交易所 → 我要出售 → 點「防禦手套I」→ 確認是升級過的 → 上架 → 一定要看到「移除」才按，拿回材料。"""
+    if not on_main():
+        back_to_main()
+    def open_ex():
+        if _WAN_EX_KEY:
+            rd.press_keys(_WAN_EX_KEY, "開交易所")       # 萬物石分頁設定的鍵（預設 1）
+        elif rd.EXCHANGE_SLOT:
+            rd.step("點快捷列的交易所")
+            click_at(rd.EXCHANGE_SLOT[0], rd.EXCHANGE_SLOT[1], wait=rd.T_PANEL_MAX)
+        else:
+            raise WanStop("開交易所的鍵沒填、快捷列交易所的位置也還沒校正（校正頁「一鍵上架」那組）")
+    open_ex()
+    tab = wait_for("exchange_sell_tab.png", timeout=4.0)
+    if not tab and on_main():
+        rd.step("交易所沒反應，再試一次")
+        open_ex()
+    tab = tab or _wan_need("exchange_sell_tab.png", 8.0, "打不開交易所")
+    rd.step(f"交易所打開了，點「我要出售」（{tab[4]:.2f} 分）")
+    click_box(tab, wait=rd.T_PANEL_MAX)
+    _wan_need("wan_glove_up.png", 4.0, "我要出售的清單裡找不到升級過的防禦手套")
+    # 點之前確認這格右上角有「I」：包包有一疊沒升級的時候，「升級過」那張圖也會比到那疊（使用者實測 0.82 分點錯）
+    sc = grab()
+    cands = rd.find_all(sc, "wan_glove_up.png")
+    marks = [(c, _wan_icon_has_I(sc, c)) for c in cands]
+    good = [c for c, m in marks if m]
+    if good:
+        g = good[0]
+        rd.step(f"找到右上角有 I 的「防禦手套I」，點它（{g[4]:.2f} 分）")
+    elif all(m is None for _, m in marks):
+        g = cands[0]
+        rd.step(f"找到「防禦手套I」，點它（{g[4]:.2f} 分；⚠ 這張圖右上角沒框到 I，沒辦法先確認，靠上架視窗的「套I」把關，建議重抓）")
+    else:
+        shot = dump_fail("wan_no_I_icon")
+        back_to_main()
+        raise WanStop("交易所清單看得到的防禦手套，右上角都沒有「I」（點到的會是沒升級的那疊），所以不點。"
+                      f"建議包包只留 1 雙手套，其他放倉庫（{shot}）")
+    click_box(g, wait=1.5)
+    # 保險一：上架視窗一定要是「防禦手套I」（升級過的）才按上架，不然會真的把手套賣掉
+    # 只框「套I」兩個字、門檻 0.9：沒有 I 的話那一塊是空白，分數一定很低（使用者截圖有 21 雙沒升級的疊在旁邊，
+    # 萬一點錯，「防禦手套」跟「防禦手套I」只差一個 I，框整串的話保險可能擋不住；2026.11.25c）
+    lu, ok_i, S, T = None, False, 0, 0
+    deadline = time.time() + 4.0 * max(0.5, rd.SLOW)
+    while time.time() < deadline:
+        sc = grab()
+        lu = find_one(sc, "wan_list_up.png", threshold=0.85)
+        if lu:
+            ok_i, S, T = _wan_has_I(sc, lu)
+            if ok_i:
+                break
+        time.sleep(0.4)
+    if lu and not ok_i:
+        shot = dump_fail("wan_list_no_I")
+        back_to_main()
+        if T == 0:
+            raise WanStop("「套I」那張圖的 I 那一塊沒有筆畫（沒框到 I），沒辦法確認是不是升級過的，所以沒有按上架。"
+                          f"請到校正頁重抓「套I」，框到 I、右邊不要留太多空白（{shot}）")
+        raise WanStop(f"上架視窗標題後面沒有「I」（I 那一塊筆畫 {S}，要 {0.75 * T:.0f} 以上），"
+                      f"這隻手套沒升級，為了不把手套賣掉，沒有按上架（{shot}）")
+    if not lu:
+        near = find_one(grab(), "wan_list_up.png", threshold=0.3)
+        shot = dump_fail("wan_list_not_up")
+        back_to_main()
+        raise WanStop(f"上架視窗不是「防禦手套I」（「套I」最像 {near[4] if near else 0.0:.2f} 分，要 0.9），"
+                      f"為了不把手套賣掉，沒有按上架（{shot}）")
+    rd.step(f"確認上架視窗是「防禦手套I」（{lu[4]:.2f} 分；I 那一塊筆畫 {S}／{T}）")
+    lb = _wan_need("wan_list_btn.png", 3.0, "上架視窗裡找不到「上架」按鈕", "看到「上架」，按下去")
+    click_box(lb, wait=1.0)
+    # 有時候先跳「注意：價格會隨市場浮動」（不再提示／取消上架／繼續上架）。上面已經確認是「防禦手套I」，
+    # 升級過的遊戲不讓上架，按「繼續上架」一定會跳「移除」，所以可以按（使用者截圖，2026.11.25d）
+    rm = notice = None
+    deadline = time.time() + 6.0 * max(0.5, rd.SLOW)
+    while time.time() < deadline:
+        sc = grab()
+        rm = find_one(sc, "wan_remove.png")
+        if rm:
+            break
+        if has("wan_notice_go.png"):
+            notice = find_one(sc, "wan_notice_go.png")
+            if notice:
+                break
+        time.sleep(0.4)
+    if notice and not rm:
+        rd.step(f"跳出「注意：價格會浮動」視窗（{notice[4]:.2f} 分）")
+        cb = find_one(grab(), "wan_notice_check.png") if has("wan_notice_check.png") else None
+        if cb:
+            rd.step(f"勾「不再提示」（{cb[4]:.2f} 分）")
+            click_at(cb[0] + max(6, cb[3] // 2), cb[1] + cb[3] // 2, wait=0.8)   # 勾選框在最左邊
+        rd.step("按「繼續上架」（已確認是防禦手套I，遊戲一定會跳「移除」）")
+        click_box(notice, wait=1.5)
+        rm = wait_for("wan_remove.png", timeout=6.0)
+    # 保險二：一定要跳出「移除升級狀態」才是對的；沒有就可能真的上架了，整個停下來
+    if not rm:
+        shot = dump_fail("wan_no_remove")
+        raise WanStop("⚠⚠ 按了「上架」但沒看到「移除升級狀態」視窗！手套可能真的上架了，"
+                      "請馬上到交易所「正在出售」檢查，有的話下架。"
+                      "（如果畫面停在「注意：價格會浮動」視窗，代表還沒上架：按「取消上架」，"
+                      f"再到校正頁抓「繼續上架」和「不再提示」那兩張）（{shot}）")
+    rd.step(f"跳出「移除升級狀態」，按「移除」（{rm[4]:.2f} 分；5000 Zeny，拿回煤炭、鋼鐵）")
+    click_box(rm, wait=2.0)
+    if wait_until(lambda sc: find_one(sc, "wan_remove.png") is not None, 2.0):
+        rd.step("「移除」還在，再按一次")
+        click_box(rm, wait=2.0)
+    wait_stable(2.0)
+    rd.step("關掉交易所")
+    back_to_main()
+
+
+def _wan_stable(tmpl, timeout, what):
+    """找到按鈕後，連看兩次位置都一樣（差 3 點以內）才回傳；還在動就等。
+    使用者實測：點「倉庫服務」時角色位移、點到地板——點卡普拉後角色走過去，鏡頭跟著動，選單也在動，
+    找到時的位置跟滑鼠到的時候不一樣（2026.11.25p）。"""
+    deadline = time.time() + timeout * max(0.5, rd.SLOW)
+    told = False
+    while time.time() < deadline:
+        b1 = find_one(grab(), tmpl)
+        if not b1:
+            time.sleep(0.3)
+            continue
+        time.sleep(0.35)
+        b2 = find_one(grab(), tmpl)
+        if b2 and abs(b2[0] - b1[0]) <= 3 and abs(b2[1] - b1[1]) <= 3:
+            return b2
+        if not told:
+            rd.step(f"{what}還在移動（角色在走），等它停下來再點")
+            told = True
+    return None
+
+
+def _wan_deposit():
+    """點卡普拉頭上的對話框 → 倉庫服務 → 右邊包包的煤炭、鋼鐵各點兩下存進倉庫。"""
+    if not on_main():
+        back_to_main()
+    # 卡普拉偶爾會講話，對話泡泡會蓋住「倉庫/儲存/傳送」幾秒（使用者截圖）→ 最多等 10 秒（2026.11.25f）
+    n = wait_for("wan_npc.png", timeout=2.0)
+    if not n:
+        rd.step("還沒看到卡普拉頭上的對話框（可能被 NPC 講話的泡泡擋住），最多再等 8 秒")
+        n = _wan_need("wan_npc.png", 8.0, "等了 10 秒都找不到卡普拉頭上的「倉庫/儲存/傳送」對話框"
+                                           "（角色要站在卡普拉旁邊；鏡頭要跟抓圖時一樣，建議鎖定鏡頭）")
+    n = _wan_stable("wan_npc.png", 4.0, "卡普拉頭上的對話框") or n
+    rd.step(f"看到卡普拉頭上的對話框，點它（{n[4]:.2f} 分）")
+    click_box(n, wait=1.5)
+    _wan_need("wan_storage_btn.png", 4.0, "沒看到「倉庫服務」")
+    sb = _wan_stable("wan_storage_btn.png", 6.0, "「倉庫服務」")
+    if not sb:
+        raise WanStop(f"「倉庫服務」一直在移動、停不下來，沒有點（避免點到地板讓角色走掉）（{dump_fail('wan_storage_moving')}）")
+    rd.step(f"「倉庫服務」停好了，點它（{sb[4]:.2f} 分）")
+    click_box(sb, wait=rd.T_PANEL_MAX)
+    _wan_need("wan_storage_title.png", 6.0, "倉庫沒打開", "倉庫打開了")
+    # 要存進「通用倉庫」（使用者提醒）；已經在那一頁的話再點一次也沒關係
+    sh = _wan_point("wan_shared_tab")
+    rd.step("點左邊的「通用倉庫」分頁")
+    click_at(sh[0], sh[1], wait=1.5)
+    wait_stable(1.5)
+    for tmpl, name in (("wan_coal.png", "煤炭"), ("wan_steel.png", "鋼鐵")):
+        b = _wan_right(tmpl)
+        if not b:
+            rd.step(f"包包裡沒看到{name}（可能已經存過了），跳過")
+            continue
+        for k in range(1, 4):
+            rd.step(f"{name}點兩下存進倉庫（{b[4]:.2f} 分）" + (f"（第 {k} 次）" if k > 1 else ""))
+            _wan_dclick(b)
+            b = _wan_right(tmpl)
+            if not b:
+                break
+        else:
+            shot = dump_fail("wan_deposit")
+            back_to_main()
+            raise WanStop(f"{name}點了 3 次還在包包裡，存不進倉庫（下一輪升級會用到包包裡的材料，先停下來；{shot}）")
+    rd.step("煤炭、鋼鐵都存進倉庫了，關掉倉庫")
+    back_to_main()
+
+
+def wan_run(hwnd, rounds, ex_key="1"):
+    """萬物石換材料跑 rounds 輪。任何一步不對就整個停下來（存截圖、寫原因）。ex_key：開交易所按的鍵，空白＝點快捷列。"""
+    global _WAN_EX_KEY
+    _WAN_EX_KEY = (ex_key or "").strip()
+    home = rd.ACTIVE_PROFILE
+    rd.STEP_TIME = True
+    done = 0
+    try:
+        kind = rd.kind_of(hwnd)
+        rd.use_profile(kind)
+        _load()
+        lack = [t for t in WAN_TEMPLATES if not has(t)] + [p for p in WAN_POINTS if not _wan_point(p)]
+        if lack:
+            print(f"【{kind}】萬物石還沒校正完：" + "、".join(lack) + "（校正頁「萬物石（防禦手套）」那組；交易所在「一鍵上架」那組）")
+            return
+        label = rd.window_label(hwnd)
+        print(f"萬物石換材料：{label}，跑 {rounds} 輪（每輪約 5000 Zeny＋8 顆萬物石，換煤炭 80、鋼鐵 80）；"
+              f"開交易所：{('按 ' + _WAN_EX_KEY.upper()) if _WAN_EX_KEY else '點快捷列第 1 格'}")
+        orig = rd.remember_place(hwnd)
+        hover = _HoverMoves().__enter__()
+        try:
+            _use(hwnd)
+            rd.normalize_window(hwnd)
+            t0 = time.time()
+            for n in range(1, rounds + 1):
+                print(f"\n──── {time.strftime('%H:%M:%S')}　第 {n}/{rounds} 輪 ────", flush=True)
+                for what, fn in (("升級", _wan_upgrade), ("移除升級", _wan_remove), ("存倉庫", _wan_deposit)):
+                    rd.step(f"【{what}】")
+                    try:
+                        fn()
+                    except WanStop as e:
+                        print(f"\n✗ 第 {n} 輪在「{what}」停下來：{e}")
+                        print(f"完成 {done} 輪，共 {(time.time() - t0) / 60:.0f} 分鐘。")
+                        return
+                done += 1
+                print(f"  {time.strftime('%H:%M:%S')} → 第 {n} 輪完成", flush=True)
+            print(f"\n✓ {rounds} 輪全部完成，共 {(time.time() - t0) / 60:.0f} 分鐘。")
+        finally:
+            hover.__exit__(None, None, None)
+            try:
+                rd.restore_place(hwnd, orig)
+            except Exception:
+                pass
+    finally:
+        rd.STEP_TIME = False
+        rd.use_profile(home)
+        _load()
+
+
+# ---------------------------------------------------------------------------
+# 開帳號：用帳號切換的備份，一個一個開官方遊戲並進到遊戲（2026.11.23）
+# ---------------------------------------------------------------------------
+
+def _acct_mod():
+    """把旁邊的 account_switch.pyw 當成模組載入（用它的換帳號功能，不用另外打開帳號切換）。"""
+    import importlib.machinery
+    import importlib.util
+    path = os.path.join(rd.BASE_DIR, "account_switch.pyw")
+    loader = importlib.machinery.SourceFileLoader("account_switch_mod", path)
+    spec = importlib.util.spec_from_loader("account_switch_mod", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+
+OPEN_TEMPLATES = ["title_start.png", "charsel_start.png"]
+
+
+def open_accounts(plan, cols=0):
+    """plan = [(帳號名, 資料夾完整路徑, exe)]。每個帳號：放回登入資料 → 開那個資料夾的遊戲 →
+    等視窗 → 標題「開始遊戲」→ 選本尊 → 進遊戲，**完全進到遊戲才換下一個**。
+
+    所有官方遊戲共用同一份登入資料（LocalLow），前一個還在登入時就換掉，下一個可能會登成同一隻。"""
+    import subprocess
+    home = rd.ACTIVE_PROFILE
+    rd.STEP_TIME = True
+    try:
+        acc = _acct_mod()
+        root = acc.game_root()
+        if not root:
+            print("找不到官方遊戲的登入資料位置（這台電腦還沒開過官方遊戲？）")
+            return
+        rd.use_profile("官方")
+        _load()
+        lack = [t for t in OPEN_TEMPLATES if not has(t)]
+        if lack:
+            print("【官方】開帳號需要的模板還沒抓：" + "、".join(lack)
+                  + "（校正頁「燃料輪替」那組：標題畫面的「開始遊戲」、選角畫面的「開始遊戲」）")
+            return
+        print(f"開帳號：{len(plan)} 個，一個完全進到遊戲才換下一個（大約每個 1～3 分鐘）")
+        if acc.who_is_current(root) == "":
+            acc.save_account(root, acc.AUTO_BACKUP)
+            print("  目前的登入還沒記住過，先自動留一份「換帳號前自動留的備份」")
+        results = []
+        for name, folder, exe in plan:
+            fname = os.path.basename(folder)
+            print(f"\n──── {time.strftime('%H:%M:%S')}　{name} → {fname} ────", flush=True)
+            if any(rd.window_label(h) == fname for h in rd.find_windows()):
+                results.append((name, fname, "⚠ 這個資料夾已經開著了，跳過（要開的話先把它關掉）"))
+                print(f"  → {results[-1][2]}")
+                continue
+            rd.step(f"換成「{name}」的登入資料")
+            acc.restore_account(root, name)
+            if acc.who_is_current(root) != name:
+                results.append((name, fname, "✗ 放回登入資料後檢查不是這隻，跳過（到帳號切換重新記住這隻）"))
+                print(f"  → {results[-1][2]}")
+                continue
+            rd.step(f"開 {fname} 的遊戲")
+            try:
+                subprocess.Popen([exe], cwd=os.path.dirname(exe))
+            except Exception as e:
+                results.append((name, fname, f"✗ 開不起來：{e}"))
+                print(f"  → {results[-1][2]}")
+                continue
+            hwnd = None
+            deadline = time.time() + 90
+            while time.time() < deadline and not hwnd:
+                if rd.ABORT:
+                    raise rd.Aborted()
+                time.sleep(2)
+                hwnd = next((h for h in rd.find_windows() if rd.window_label(h) == fname), None)
+            if not hwnd:
+                results.append((name, fname, "✗ 等了 90 秒視窗沒出現（閃退或被擋？）"))
+                print(f"  → {results[-1][2]}")
+                continue
+            rd.step("視窗出現了，搬到左上角，等標題畫面（剛開遊戲可能要 1～3 分鐘）；"
+                    f"每 {rd.WATCH_GAP:g} 秒檢查一次，遊戲把視窗移走就拉回來")
+            orig = rd.remember_place(hwnd)
+            pulls = 0
+            try:
+                _use(hwnd)
+                rd.normalize_window(hwnd)
+                rd.watch_window(hwnd)                 # 剛開的遊戲會自己跳回正中間：盯著拉回來
+                r = enter_from_title(1, title_timeout=180.0, need_slot=False)
+            finally:
+                pulls = rd.watch_window(None)
+                try:
+                    rd.restore_place(hwnd, orig)
+                except Exception:
+                    pass
+            if pulls:
+                rd.step(f"這個視窗被遊戲移走、拉回來了 {pulls} 次")
+            if r is True:
+                results.append((name, fname, "✓ 進到遊戲了"))
+            elif r == "empty":
+                results.append((name, fname, "⚠ 選角畫面第 1 格是空的"))
+            else:
+                shot = dump_fail(f"open_{fname}")
+                results.append((name, fname, "✗ 沒進到遊戲（如果停在 Google／Apple 登入畫面，是這隻的登入資料過期了："
+                                             f"手動登入後到帳號切換重新記住；{shot}）"))
+            print(f"  → {results[-1][2]}")
+        print("\n========== 開帳號結果 ==========")
+        for name, fname, msg in results:
+            print(f"  {name}（{fname}）：{msg}")
+        if any(m.startswith("✓") or "沒進到遊戲" in m or "第 1 格是空的" in m for _, _, m in results):
+            print("\n全部開完，自動排列視窗：", flush=True)
+            try:
+                rd.arrange_windows(cols=cols, log=print)
+            except Exception as e:
+                print(f"  自動排列失敗：{e}（可以自己按「自動排列視窗」）")
+    finally:
+        rd.STEP_TIME = False
+        rd.use_profile(home)
+        _load()
+
+
 def switch_character(slot):
     """設置 →「回到登錄」→ 標題「開始遊戲」→ 選第 slot 隻 →「開始遊戲」→ 等回到主畫面。
     回傳 True 成功 / "empty" 這格沒有角色（「＋」）/ False 失敗。"""
@@ -603,7 +1206,15 @@ def switch_character(slot):
     if ok:
         click_box(ok)
     rd.step("按了「回到登錄」，等標題畫面（通常 5～10 秒）")
-    t = wait_for("title_start.png", timeout=60.0)
+    return enter_from_title(slot)
+
+
+def enter_from_title(slot, title_timeout=60.0, need_slot=True):
+    """從標題畫面一路進到遊戲：等「開始遊戲」→ 按 → 選角畫面選第 slot 隻 → 按「開始遊戲」→ 等回到主畫面。
+    換角色（switch_character）和開帳號（open_accounts）共用。
+    need_slot=False：選角頭像位置沒校正時不選，直接進上次玩的那隻。
+    回傳 True 成功 / "empty" 這格沒有角色 / False 失敗。"""
+    t = wait_for("title_start.png", timeout=title_timeout)
     if not t:
         rd.step("等不到標題畫面的「開始遊戲」")
         return False
@@ -613,15 +1224,19 @@ def switch_character(slot):
         rd.step("等不到選角畫面")
         return False
     pt = P_CHAR_SLOTS[slot - 1]
-    if not pt:
+    if not pt and need_slot:
         rd.step(f"選角畫面第 {slot} 個頭像的位置還沒校正")
         return False
-    if has("charsel_plus.png"):
-        plus = find_one(grab(), "charsel_plus.png")
-        if plus and abs(plus[0] + plus[2] // 2 - pt[0]) < 45 and abs(plus[1] + plus[3] // 2 - pt[1]) < 45:
-            rd.step(f"第 {slot} 格是「＋」：這個帳號沒有第 {slot} 隻")
-            return "empty"
-    click_at(pt[0], pt[1], wait=1.5)
+    if not pt:
+        rd.step(f"選角頭像位置沒校正，直接進上次玩的那隻")
+    else:
+        if has("charsel_plus.png"):
+            plus = find_one(grab(), "charsel_plus.png")
+            if plus and abs(plus[0] + plus[2] // 2 - pt[0]) < 45 and abs(plus[1] + plus[3] // 2 - pt[1]) < 45:
+                rd.step(f"第 {slot} 格是「＋」：這個帳號沒有第 {slot} 隻")
+                return "empty"
+        rd.step(f"選第 {slot} 隻{'（本尊）' if slot == 1 else ''}")
+        click_at(pt[0], pt[1], wait=1.5)
     st = wait_for("charsel_start.png", timeout=5.0)
     if not st:
         return False
