@@ -68,7 +68,7 @@ SHOT_DIR = os.path.join(PROFILES_DIR, "官方", "shots")
 CONFIG_PATH = os.path.join(PROFILES_DIR, "官方", "config.json")
 
 # ---- 兩個環境共通的基準值（環境預設值和 config 會往上蓋）----
-__version__ = "2026.11.19"
+__version__ = "2026.11.26"
 
 WINDOW_TITLE = "ROM Classic"     # 遊戲視窗標題，部分符合即可
 WINDOW_EXCLUDE = []              # 標題含這些字的視窗不算遊戲（例如雷電的「多開器」）
@@ -1171,9 +1171,53 @@ def normalize_window(hwnd):
     nap(T_AFTER_RESIZE)
 
 
+WATCH_GAP = 5.0                  # 盯著視窗：每幾秒檢查一次位置（使用者指定 5 秒）
+_WATCH = None                    # {"hwnd", "rect", "next", "n"}；開帳號時用
+
+
+def watch_window(hwnd):
+    """開始（hwnd）／停止（None）盯著這個視窗。剛開的官方遊戲轉圈圈時會自己跳回螢幕正中間（Unity），
+    程式還在左上角找「開始遊戲」就找不到。盯著的時候每 WATCH_GAP 秒看一次，被移走就拉回左上角並寫紀錄。
+    掛在 grab() 上：等待時程式一直在截圖，所以不會漏（2026.11.23）。回傳這次總共拉回幾次。"""
+    global _WATCH
+    n = _WATCH["n"] if _WATCH else 0
+    if hwnd is None:
+        _WATCH = None
+        return n
+    try:
+        rect = get_rect(hwnd)
+    except Exception:
+        rect = None
+    _WATCH = {"hwnd": hwnd, "rect": rect, "next": time.time() + WATCH_GAP, "n": 0}
+    return 0
+
+
+def _watch_check():
+    w = _WATCH
+    if not w or time.time() < w["next"]:
+        return
+    w["next"] = time.time() + WATCH_GAP              # 先設好，下面搬視窗時又截圖也不會重複進來
+    try:
+        cur = get_rect(w["hwnd"])
+    except Exception:
+        return
+    old = w["rect"]
+    if old and all(abs(a - b) <= 10 for a, b in zip(cur, old)):
+        return
+    w["n"] += 1
+    step(f"視窗被遊戲移走了（跑到 ({cur[0]}, {cur[1]})），拉回左上角（第 {w['n']} 次）")
+    try:
+        normalize_window(w["hwnd"])
+        w["rect"] = get_rect(w["hwnd"])
+    except Exception as e:
+        step(f"⚠ 拉不回來：{e}")
+
+
 def grab(x=None, y=None, w=None, h=None):
     if ABORT:
         raise Aborted()
+    if _WATCH:
+        _watch_check()
     x = AREA_X if x is None else x
     y = AREA_Y if y is None else y
     w = AREA_W if w is None else w
@@ -2847,7 +2891,8 @@ def do_ticket(idx):
     else:
         step(f"F2 是掃蕩券，點那一格（{sx},{sy}）使用")
         click_at(sx, sy)
-    gift = wait_for("sweep_gift.png", timeout=6.0)
+    # 6 → 12 秒：使用者的失敗截圖其實有禮物視窗，只是那個視窗比較卡、6 秒後才跳出來（2026.11.23e）
+    gift = wait_for("sweep_gift.png", timeout=12.0)
     if not gift:
         shot = dump_fail(f"win{idx:02d}_ticket")
         back_to_main()
@@ -3268,9 +3313,10 @@ def do_relist(idx):
             click_box(yes, wait=T_PANEL_MAX)
         else:
             step("沒看到確認視窗（可能直接開始上架了）")
-        step("等上架跑完")
-        wait_stable(4.0)
-        nap(1.0)
+        # 使用者：以前「等畫面不動（最多 4 秒）＋1 秒」，上架在背景跑畫面常常不動，實際只等 2 秒就按下一次，太快。
+        # 改成固定等 RELIST_WAIT 秒（使用者選 10 秒，2026.11.23e）
+        step(f"等上架跑完（{RELIST_WAIT:g} 秒）")
+        nap(RELIST_WAIT)
 
     step("「一鍵上架」按鈕不見了：過期的都上架完了" if rounds else "沒有「一鍵上架」按鈕：沒有過期貨物")
     back_to_main()
@@ -3278,6 +3324,8 @@ def do_relist(idx):
         return True, "沒有過期貨物要上架"
     return True, f"一鍵上架按了 {rounds} 次，全部上架完成"
 
+
+RELIST_WAIT = 10.0               # 一鍵上架按完「是」後固定等幾秒再按下一次（使用者指定）
 
 ALL_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem", "relist")
 MAIN_TASKS = ("pet", "comm", "claim", "bonus", "dungeon", "ticket", "redeem", "relist")   # 控制台勾選的（一鍵上架預設不勾）
