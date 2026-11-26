@@ -21,13 +21,15 @@ import os
 import queue
 import re
 import shutil
+import subprocess
 import sys
 import threading
+import time
 import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.19"
+__version__ = "2026.11.26"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -272,6 +274,31 @@ CALIB_GROUPS = [
           "右下角的數量會一直變，框到就會認不到）", (40, 28), "btn", "feat"),
          ("tmpl", "fuel_full.png", "點燃料後「每日獲取上限：2000/2000」裡的 2000/2000", (50, 16), "btn", "feat"),
      ]},
+    {"title": "萬物石（防禦手套）",
+     "how": "照順序到這些畫面抓：包包（打開就是 All）→ 點防禦手套 → 強化 → 升級頁 → 升級完 → 交易所我要出售（點升級過的手套）→ "
+            "按上架跳出移除 → 主畫面卡普拉 → 倉庫畫面。交易所位置沿用「一鍵上架」那組。圖都只框按鈕或字本身",
+     "items": [
+         ("tmpl", "wan_glove.png", "包包（All 分頁）裡的防禦手套（沒升級的；只框手套上半部，不要框到右下角的數量）", (48, 34), "btn", "feat"),
+         ("point", "wan_bag_scroll", "包包格子區的正中間（手套不在第一頁時從這裡上下拖來找；選用，沒抓就借用燃料輪替那組的同一個位置）", False),
+         ("tmpl", "wan_enhance.png", "點手套後，詳細資料右下黃色「強化」", (90, 34), "btn", "feat"),
+         ("point", "wan_upgrade_tab", "強化畫面左邊的「升級」", "feat"),
+         ("point", "wan_stone_box", "升級頁「使用萬物之石」的勾選框", "feat"),
+         ("tmpl", "wan_stone_on.png", "升級頁「使用萬物之石」已經打勾（綠勾＋字）", (110, 24), "btn", "feat"),
+         ("tmpl", "wan_upgrade_btn.png", "勾了萬物之石後的黃色「升級」（不是「購買材料」）", (120, 36), "btn", "feat"),
+         ("tmpl", "wan_upgraded.png", "升級完：中間大圖示下面「防禦手套I」的字（要有 I）", (100, 24), "btn", "feat"),
+         ("tmpl", "wan_glove_up.png", "交易所我要出售：左邊清單裡升級過的防禦手套（右上有 I）", (56, 56), "btn", "feat"),
+         ("tmpl", "wan_list_up.png", "點升級過的手套後，上架視窗標題裡的「套I」兩個字（只框「套」和後面的 I；這是防止賣錯的保險，要 0.9 分以上）", (34, 26), "btn", "feat"),
+         ("tmpl", "wan_list_btn.png", "上架視窗的黃色「上架」", (90, 36), "btn", "feat"),
+         ("tmpl", "wan_remove.png", "按上架後跳出的綠色「移除」", (140, 36), "btn", "feat"),
+         ("tmpl", "wan_notice_go.png", "按上架後有時先跳「注意：價格會浮動」視窗的綠色「繼續上架」（選用；沒抓的話遇到這個視窗會停下來）", (150, 36), "btn", False),
+         ("tmpl", "wan_notice_check.png", "同一個「注意」視窗的「☐ 不再提示」（勾選框加後面的字一起框；選用）", (90, 24), "btn", False),
+         ("tmpl", "wan_npc.png", "主畫面卡普拉頭上的「倉庫/儲存/傳送」對話框（先把鏡頭調到字看得清楚、點左下角鎖頭鎖定再抓；換距離可以再抓一張，會一起用）", (120, 30), "btn", "feat"),
+         ("tmpl", "wan_storage_btn.png", "點對話框後的「倉庫服務」", (140, 34), "btn", "feat"),
+         ("tmpl", "wan_storage_title.png", "倉庫畫面左上角的「倉庫」字樣", (60, 40), "btn", "feat"),
+         ("point", "wan_shared_tab", "倉庫畫面最左邊直排的「通用倉庫」分頁（煤炭鋼鐵要存在這裡）", "feat"),
+         ("tmpl", "wan_coal.png", "倉庫畫面右邊包包裡的煤炭（只框圖示中間，不要框到數量和 New）", (36, 28), "btn", "feat"),
+         ("tmpl", "wan_steel.png", "倉庫畫面右邊包包裡的鋼鐵（只框圖示中間，不要框到數量和 New）", (36, 28), "btn", "feat"),
+     ]},
     {"title": "組隊輪替",
      "how": "各項目說明有寫在哪個畫面。好友 ❤ 最愛裡只放隊長",
      "items": [
@@ -338,6 +365,13 @@ SETTINGS = [
 # 設定分頁裡收在「進階」的項目（通常不用動；其他的放「常用」）
 ADVANCED_SETTINGS = {"window_title", "work_w", "work_h", "pet_mode", "match_threshold",
                      "pet_gift_min_x", "row_safe_bottom", "adaptive_wait"}
+
+
+def pyautogui_keys():
+    try:
+        return set(rd.pyautogui.KEYBOARD_KEYS)
+    except Exception:
+        return set("abcdefghijklmnopqrstuvwxyz0123456789") | {f"f{i}" for i in range(1, 13)}
 
 
 def load_cfg():
@@ -779,6 +813,8 @@ class App:
         nb.add(self.tab_fuel, text="  燃料輪替  ")
         self.tab_party = ttk.Frame(nb)
         nb.add(self.tab_party, text="  組隊輪替  ")
+        self.tab_wan = ttk.Frame(nb)
+        nb.add(self.tab_wan, text="  萬物石  ")
         calib_holder = ScrollFrame(nb)
         nb.add(calib_holder, text="  校正  ")
         self.tab_calib = calib_holder.inner
@@ -790,6 +826,7 @@ class App:
         self._build_calib()
         self._build_party()
         self._build_fuel()
+        self._build_wan()
         self._build_settings()
 
         self.status = tk.StringVar(value=f"待命中（執行中按 {rd.STOP_KEY.upper()} 可立刻停止）　｜　版本 {__version__}")
@@ -913,6 +950,10 @@ class App:
         ttk.Button(m1, text="檢查開了哪些", command=self.check_instances).pack(side="left")
         ttk.Button(m1, text="補開沒開的", command=self.open_missing).pack(side="left", padx=8)
         ttk.Button(m1, text="強制關閉…", command=self.kill_dialog).pack(side="left")
+        self.btn_open_acc = ttk.Button(m1, text="開帳號…", command=self.open_accounts_dialog)
+        self.btn_open_acc.pack(side="left", padx=8)
+        Tooltip(self.btn_open_acc, "官方：勾要開的帳號（帳號切換裡記住的那些），程式一個一個換登入資料、"
+                                   "開在固定的資料夾、按進遊戲（本尊）。不用另外打開帳號切換。")
         m2 = ttk.Frame(multi)
         m2.pack(anchor="w", pady=(6, 0))
         ttk.Button(m2, text="標示視窗編號", command=self.show_numbers).pack(side="left")
@@ -939,6 +980,9 @@ class App:
         self.btn_stop.pack(side="left", padx=6)
         ttk.Button(bar, text="清除紀錄", command=self.clear_log).pack(side="right")
         ttk.Button(bar, text="清除今天的完成紀錄", command=self.clear_today).pack(side="right", padx=6)
+        rb = ttk.Button(bar, text="打包問題回報", command=self.pack_report)
+        rb.pack(side="right", padx=(0, 6))
+        Tooltip(rb, "把今天的紀錄和失敗截圖打包成一個 zip，用 LINE 傳給作者看。")
 
         frame = ttk.Frame(f, padding=(8, 0, 8, 8))
         frame.pack(fill="both", expand=True)
@@ -1163,6 +1207,115 @@ class App:
     def select_all_windows(self):
         self.selected_windows = None
         self.win_sel_lbl.configure(text="目前：全部")
+
+    def open_accounts_dialog(self):
+        """開帳號：列出帳號切換記住的帳號，每個選固定的資料夾（記住），勾要開的，按開始。"""
+        if not self._idle("開帳號"):
+            return
+        try:
+            acc = rp._acct_mod()
+            names = [n for n in acc.saved_accounts() if n != acc.AUTO_BACKUP]
+        except Exception as e:
+            messagebox.showerror("讀不到帳號切換", f"讀不到帳號切換的備份：{e}")
+            return
+        if not names:
+            messagebox.showinfo("還沒有帳號", "帳號切換裡還沒記住任何帳號。\n先打開帳號切換，登入後按「記住目前的帳號」。")
+            return
+        info = rd.list_instances()
+        folders = {x["name"]: x for x in info.get("all", [])}
+        if not folders:
+            messagebox.showinfo("還不知道遊戲裝在哪",
+                                "程式還不知道官方遊戲的多開資料夾在哪。\n先手動開一個官方遊戲，按「檢查開了哪些」讓程式記下來。")
+            return
+        fnames = list(folders)
+        shared = load_shared()
+        mapping = dict(shared.get("account_folders") or {})
+        last = set(shared.get("account_open_last") or [])
+
+        win = tk.Toplevel(self.root)
+        win.withdraw()
+        win.title("開帳號")
+        win.transient(self.root)
+        body = ttk.Frame(win, padding=12)
+        body.pack(fill="both", expand=True)
+        ttk.Label(body, text="勾要開的帳號，每個帳號選固定開在哪個資料夾（會記住；燃料、副本等級的設定是跟著資料夾名字的）。\n"
+                             "按開始後程式一個一個開：換登入資料 → 開遊戲 → 按「開始遊戲」→ 進本尊，"
+                             "完全進到遊戲才換下一個。跑的時候不要碰滑鼠鍵盤，按 F12 停止。",
+                  foreground="#666", justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        for c, t in enumerate(("開", "帳號", "開在哪個資料夾", "現在")):
+            ttk.Label(body, text=t, font=("Microsoft JhengHei", 9, "bold")).grid(row=1, column=c, sticky="w", padx=6)
+        rows = []
+        for i, n in enumerate(names, 2):
+            v = tk.BooleanVar(value=n in last)
+            ttk.Checkbutton(body, variable=v).grid(row=i, column=0, padx=6)
+            ttk.Label(body, text=n).grid(row=i, column=1, sticky="w", padx=6, pady=2)
+            f = tk.StringVar(value=mapping.get(n, "") if mapping.get(n, "") in folders else "")
+            ttk.Combobox(body, textvariable=f, values=fnames, state="readonly", width=10).grid(
+                row=i, column=2, sticky="w", padx=6)
+            st = ttk.Label(body, text="", foreground="#666")
+            st.grid(row=i, column=3, sticky="w", padx=6)
+
+            def upd(*_, f=f, st=st):
+                x = folders.get(f.get())
+                st.configure(text=("" if not x else "開著（會跳過）" if x["open"]
+                                   else "沒開" if x["exe"] else "找不到 exe"))
+            f.trace_add("write", upd)
+            upd()
+            rows.append((n, v, f))
+
+        def go():
+            pick = [(n, f.get()) for n, v, f in rows if v.get()]
+            if not pick:
+                messagebox.showinfo("沒有勾", "至少勾一個要開的帳號。", parent=win)
+                return
+            nofolder = [n for n, fn in pick if not fn]
+            if nofolder:
+                messagebox.showinfo("還沒選資料夾", "這幾個還沒選要開在哪個資料夾：\n" + "、".join(nofolder), parent=win)
+                return
+            used = {}
+            for n, fn in pick:
+                if fn in used:
+                    messagebox.showinfo("資料夾重複", f"「{used[fn]}」和「{n}」都選了 {fn}，一個資料夾只能開一個帳號。", parent=win)
+                    return
+                used[fn] = n
+            sh = load_shared()
+            m = dict(sh.get("account_folders") or {})
+            m.update({n: f.get() for n, v, f in rows if f.get()})
+            sh["account_folders"] = m
+            sh["account_open_last"] = [n for n, _ in pick]
+            save_shared(sh)
+            plan, skip = [], []
+            for n, fn in pick:
+                x = folders[fn]
+                if not x["exe"]:
+                    skip.append(f"{n}（{fn} 裡找不到遊戲 exe）")
+                    continue
+                plan.append((n, x["path"], x["exe"]))
+            win.destroy()
+            if skip:
+                self.log("這幾個跳過：" + "、".join(skip) + "\n", "warn")
+            if not plan:
+                return
+            if self.fixed_hwnd:
+                self.unfix_window()
+            try:
+                cols = int(self.arrange_cols.get() or 0)
+            except ValueError:
+                cols = 0
+            self.start(lambda: rp.open_accounts(plan, cols), "開帳號中，請勿操作滑鼠鍵盤")
+
+        bar = ttk.Frame(body)
+        bar.grid(row=len(names) + 2, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        ttk.Button(bar, text="開始", command=go).pack(side="left", padx=4)
+        ttk.Button(bar, text="取消", command=win.destroy).pack(side="left", padx=4)
+        win.update_idletasks()
+        ww, wh = win.winfo_reqwidth(), win.winfo_reqheight()
+        rx, ry = self.root.winfo_rootx(), self.root.winfo_rooty()
+        rw, rh = self.root.winfo_width(), self.root.winfo_height()
+        win.geometry(f"{ww}x{wh}+{rx + max(0, (rw - ww) // 2)}+{ry + max(0, (rh - wh) // 2)}")
+        win.deiconify()
+        win.lift()
+        win.focus_force()
 
     def account_settings(self):
         """各帳號設定：每個開著的帳號一列，選副本掃哪一級。存在共用設定 dungeon_levels（用帳號名字記）。"""
@@ -1876,6 +2029,142 @@ class App:
     # ==================================================================
     # 組隊輪替
     # ==================================================================
+    def _build_wan(self):
+        """萬物石換材料：選一個視窗、跑幾輪（2026.11.25，使用者要獨立分頁）。"""
+        f = self.tab_wan
+        ttk.Label(f, text="用萬物之石把防禦手套升 1 階 → 交易所按上架 →「移除升級狀態」拿回煤炭 80、鋼鐵 80 → 存進倉庫，一直重複。\n"
+                          "每輪大約花 5000 Zeny＋8 顆萬物石。開始前：角色站在卡普拉旁邊（主畫面看得到頭上的「倉庫/儲存/傳送」）、"
+                          "鏡頭鎖定（左下角鎖頭，跟抓圖時同一個距離）、包包和身上不要有煤炭和鋼鐵、包包只留 1 雙防禦手套（存進倉庫再拿出來會排在第一排）。第一次用先到「校正 → 萬物石（防禦手套）」抓好。\n"
+                          "安全：上架前一定確認是「防禦手套I」，按上架後一定要看到「移除」，任何一步不對就整個停下來。跑的時候按 F12 停止。",
+                  foreground="#666", wraplength=660, justify="left").pack(fill="x", padx=8, pady=(8, 4))
+        box = ttk.LabelFrame(f, text="設定", padding=8)
+        box.pack(fill="x", padx=8, pady=4)
+        shared = load_shared()
+        ttk.Label(box, text="用哪個視窗：").grid(row=0, column=0, sticky="w")
+        self.wan_win = tk.StringVar(value=shared.get("wan_window", ""))
+        self.wan_combo = ttk.Combobox(box, textvariable=self.wan_win, state="readonly", width=22)
+        self.wan_combo.grid(row=0, column=1, sticky="w", padx=4)
+        ttk.Button(box, text="重新整理", command=self.wan_refresh).grid(row=0, column=2, padx=4)
+        # 跑幾輪：二選一（使用者要求，2026.11.25o）。依萬物石數量自動算；或直接指定（測試跑 1 輪用）。沒選的那邊變灰不能填。
+        self.wan_mode = tk.StringVar(value=shared.get("wan_mode", "stones"))
+        self.wan_stones = tk.StringVar(value="")
+        self.wan_per = tk.StringVar(value=str(shared.get("wan_per", 8)))
+        self.wan_rounds = tk.StringVar(value=str(shared.get("wan_rounds", 1)))
+        ttk.Radiobutton(box, text="依萬物石數量：", variable=self.wan_mode, value="stones").grid(
+            row=1, column=0, sticky="w", pady=(6, 0))
+        row1 = ttk.Frame(box)
+        row1.grid(row=1, column=1, columnspan=2, sticky="w", pady=(6, 0))
+        e_st = ttk.Entry(row1, textvariable=self.wan_stones, width=8)
+        e_st.pack(side="left", padx=(4, 0))
+        ttk.Label(row1, text="顆，每輪用").pack(side="left", padx=4)
+        e_per = ttk.Spinbox(row1, from_=1, to=99, width=4, textvariable=self.wan_per)
+        e_per.pack(side="left")
+        ttk.Label(row1, text="顆").pack(side="left", padx=(4, 10))
+        self.wan_calc = ttk.Label(row1, text="", foreground="#666")
+        self.wan_calc.pack(side="left")
+        ttk.Radiobutton(box, text="直接指定輪數：", variable=self.wan_mode, value="rounds").grid(
+            row=3, column=0, sticky="w", pady=(6, 0))
+        e_rounds = ttk.Spinbox(box, from_=1, to=9999, width=6, textvariable=self.wan_rounds)
+        e_rounds.grid(row=3, column=1, sticky="w", padx=4, pady=(6, 0))
+        ttk.Label(box, text="（測試跑 1 輪用這個）", foreground="#666").grid(row=3, column=2, sticky="w", pady=(6, 0))
+
+        def calc(*_):
+            by_stones = self.wan_mode.get() == "stones"
+            for w in (e_st, e_per):
+                w.configure(state="normal" if by_stones else "disabled")
+            e_rounds.configure(state="disabled" if by_stones else "normal")
+            if not by_stones:
+                self.wan_calc.configure(text="")
+                return
+            try:
+                n = int(self.wan_stones.get().strip())
+                per = max(1, int(self.wan_per.get().strip()))
+            except ValueError:
+                self.wan_calc.configure(text="← 填現在有幾顆", foreground="#666")
+                return
+            rounds, left = divmod(n, per)
+            if rounds < 1:
+                self.wan_calc.configure(text=f"→ 不夠跑一輪（每輪要 {per} 顆）", foreground="#c01c28")
+            else:
+                self.wan_calc.configure(text=f"→ 會跑 {rounds} 輪（剩 {left} 顆）", foreground="#26a269")
+        for v in (self.wan_mode, self.wan_stones, self.wan_per):
+            v.trace_add("write", calc)
+        calc()
+        ttk.Label(box, text="開交易所按的鍵：").grid(row=4, column=0, sticky="w", pady=(10, 0))
+        self.wan_ex_key = tk.StringVar(value=str(shared.get("wan_ex_key", "1")))
+        ttk.Entry(box, textvariable=self.wan_ex_key, width=6).grid(row=4, column=1, sticky="w", padx=4, pady=(10, 0))
+        ttk.Label(box, text="（空白＝改點快捷列第 1 格）", foreground="#666").grid(
+            row=4, column=2, sticky="w", pady=(10, 0))
+        bar = ttk.Frame(f, padding=(8, 4))
+        bar.pack(fill="x")
+        self.btn_wan = ttk.Button(bar, text="開始", command=self.wan_start)
+        self.btn_wan.pack(side="left")
+        self.btn_wan_stop = ttk.Button(bar, text="停止", width=8, command=self.stop, state="disabled")
+        self.btn_wan_stop.pack(side="left", padx=6)
+        ttk.Button(bar, text="清除紀錄", command=lambda: self.wan_log.delete("1.0", "end")).pack(side="right")
+        rb = ttk.Button(bar, text="打包問題回報", command=self.pack_report)
+        rb.pack(side="right", padx=6)
+        frame = ttk.Frame(f)
+        frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.wan_log = tk.Text(frame, wrap="word", font=("Consolas", 10),
+                               bg="#1e1e1e", fg="#d4d4d4", insertbackground="#d4d4d4")
+        sb = ttk.Scrollbar(frame, command=self.wan_log.yview)
+        self.wan_log.configure(yscrollcommand=sb.set)
+        self.wan_log.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        for tag, col in (("ok", "#6ac46a"), ("bad", "#e06c6c"), ("head", "#6cb6ff"), ("warn", "#e0b060")):
+            self.wan_log.tag_config(tag, foreground=col)
+        self.wan_refresh()
+
+    def wan_refresh(self):
+        try:
+            names = [rd.window_label(h) for h in rd.find_windows()]
+        except Exception:
+            names = []
+        self.wan_combo.configure(values=names)
+        if names and self.wan_win.get() not in names:
+            self.wan_win.set(names[0])
+
+    def wan_start(self):
+        if not self._idle("開始"):
+            return
+        self.wan_refresh()
+        name = self.wan_win.get()
+        hwnd = next((h for h in rd.find_windows() if rd.window_label(h) == name), None)
+        if not hwnd:
+            messagebox.showinfo("找不到視窗", "請先選要跑萬物石的視窗（遊戲要開著）。")
+            return
+        try:
+            if self.wan_mode.get() == "stones":
+                n = int(self.wan_stones.get().strip())
+                per = max(1, int(self.wan_per.get().strip()))
+                rounds = n // per
+                if rounds < 1:
+                    messagebox.showinfo("萬物石不夠", f"{n} 顆不夠跑一輪（每輪要 {per} 顆）。")
+                    return
+            else:
+                rounds = max(1, int(self.wan_rounds.get()))
+        except ValueError:
+            messagebox.showinfo("數字不對", "萬物石數量（或輪數）要填數字。")
+            return
+        sh = load_shared()
+        ex_key = self.wan_ex_key.get().strip().lower()
+        if ex_key and ex_key not in pyautogui_keys():
+            messagebox.showinfo("按鍵不對", f"「{ex_key}」不是認得的按鍵，請填像 1、2、f3 這樣，或留空白改點快捷列。")
+            return
+        sh["wan_window"], sh["wan_ex_key"], sh["wan_mode"] = name, ex_key, self.wan_mode.get()
+        if self.wan_mode.get() == "rounds":
+            sh["wan_rounds"] = rounds
+        try:
+            sh["wan_per"] = max(1, int(self.wan_per.get()))
+        except ValueError:
+            pass
+        save_shared(sh)
+        if self.fixed_hwnd:
+            self.unfix_window()
+        self.wan_log.delete("1.0", "end")
+        self.start(lambda: rp.wan_run(hwnd, rounds, ex_key), "萬物石換材料中，請勿操作滑鼠鍵盤", target=self.wan_log)
+
     def _build_fuel(self):
         f = self.tab_fuel
         ttk.Label(f, text="鐵匠打怪掉燃料，每隻角色每天 2000。先按「燃料角色設定…」選打手、每個帳號勾要吸的角色（不勾的帳號不會被碰），再按開始。"
@@ -1907,6 +2196,9 @@ class App:
         self.btn_fuel_stop.pack(side="left", padx=6)
         ttk.Button(bar, text="清除紀錄", command=lambda: self.fuel_log.delete("1.0", "end")).pack(side="right")
         ttk.Button(bar, text="清除今天的燃料紀錄", command=self.fuel_clear).pack(side="right", padx=6)
+        rb = ttk.Button(bar, text="打包問題回報", command=self.pack_report)
+        rb.pack(side="right", padx=(0, 6))
+        Tooltip(rb, "把今天的紀錄和失敗截圖打包成一個 zip，用 LINE 傳給作者看。")
         frame = ttk.Frame(f, padding=(8, 0, 8, 8))
         frame.pack(fill="both", expand=True)
         self.fuel_log = tk.Text(frame, wrap="word", font=("Consolas", 10),
@@ -2736,14 +3028,127 @@ class App:
         self.btn_party_stop.configure(state="normal" if on else "disabled")
         self.btn_fuel.configure(state=state)
         self.btn_fuel_set.configure(state=state)
+        self.btn_open_acc.configure(state=state)
+        self.btn_wan.configure(state=state)
+        self.btn_wan_stop.configure(state="normal" if on else "disabled")
         self.btn_fuel_stop.configure(state="normal" if on else "disabled")
         self.status.set((label + f"　｜　按 {rd.STOP_KEY.upper()} 立刻停止") if on
                         else f"待命中（執行中按 {rd.STOP_KEY.upper()} 可立刻停止）")
         if not on:
             self.drain()                       # 把佇列裡剩的訊息倒完再切回預設紀錄區
+            self.save_log_file(self.active_log)
             if self.active_log is self.party_log:
                 self.party_status.set(self.party_status.get() + "　（已停止）")
             self.active_log = self.logbox
+
+    LOG_DIR_NAME = "logs"
+
+    def _log_name(self, box):
+        return {id(self.logbox): "控制台", id(getattr(self, "fuel_log", None)): "燃料輪替",
+                id(getattr(self, "wan_log", None)): "萬物石",
+                id(getattr(self, "party_log", None)): "組隊輪替"}.get(id(box), "紀錄")
+
+    def save_log_file(self, box):
+        """跑完把那個紀錄區的內容存成 logs\\日期_時間_分頁.txt（只留 14 天），打包問題回報時用。"""
+        try:
+            # 只存上次存檔之後新增的部分（以前每份都包含前面全部，打包時重複很多，2026.11.23e）
+            start = "saved_upto" if "saved_upto" in box.mark_names() else "1.0"
+            text = box.get(start, "end").strip()
+            box.mark_set("saved_upto", "end-1c")
+            box.mark_gravity("saved_upto", "left")
+            if not text:
+                return
+            d = os.path.join(rd.BASE_DIR, self.LOG_DIR_NAME)
+            os.makedirs(d, exist_ok=True)
+            path = os.path.join(d, time.strftime("%Y-%m-%d_%H%M%S") + f"_{self._log_name(box)}.txt")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text + "\n")
+            old = time.time() - 14 * 86400
+            for n in os.listdir(d):
+                fp = os.path.join(d, n)
+                if n.endswith(".txt") and os.path.getmtime(fp) < old:
+                    os.remove(fp)
+        except Exception:
+            pass
+
+    @staticmethod
+    def desktop_dir():
+        """問 Windows 桌面在哪（桌面被搬到 OneDrive 也找得到）；找不到就用使用者資料夾下的 Desktop，再不行用程式資料夾。"""
+        try:
+            import ctypes
+            buf = ctypes.create_unicode_buffer(260)
+            if ctypes.windll.shell32.SHGetFolderPathW(None, 0x0010, None, 0, buf) == 0 and os.path.isdir(buf.value):
+                return buf.value                       # CSIDL_DESKTOPDIRECTORY
+        except Exception:
+            pass
+        d = os.path.join(os.path.expanduser("~"), "Desktop")
+        return d if os.path.isdir(d) else rd.BASE_DIR
+
+    def pack_report(self):
+        """打包問題回報：今天存下來的紀錄、畫面上的紀錄、今天的失敗截圖、版本和設定資訊 → 一個 zip，
+        打開檔案總管選好它，讓朋友直接拖進 LINE 傳給作者（使用者選這個方式，不用 Discord，2026.11.23c）。"""
+        import zipfile
+        import platform
+        today = time.strftime("%Y-%m-%d")
+        start = time.mktime(time.strptime(today, "%Y-%m-%d"))
+        stamp = time.strftime("%Y%m%d_%H%M")
+        path = os.path.join(self.desktop_dir(), f"問題回報_{stamp}.zip")   # 使用者要求：直接存在桌面
+        shots, logs = [], []
+        for prof in rd.PROFILE_NAMES:
+            d = os.path.join(rd.PROFILES_DIR, prof, "shots")
+            if os.path.isdir(d):
+                for n in os.listdir(d):
+                    fp = os.path.join(d, n)
+                    if n.lower().endswith(".png") and os.path.getmtime(fp) >= start:
+                        shots.append((os.path.getmtime(fp), prof, n, fp))
+        shots = sorted(shots, reverse=True)[:60]       # 最多 60 張（最新的），zip 不會太大
+        ld = os.path.join(rd.BASE_DIR, self.LOG_DIR_NAME)
+        if os.path.isdir(ld):
+            logs = sorted(n for n in os.listdir(ld) if n.startswith(today) and n.endswith(".txt"))
+        try:
+            winver = platform.platform()
+        except Exception:
+            winver = "（讀不到）"
+        info = [f"ROM 日常助手 {__version__}", f"打包時間：{time.strftime('%Y-%m-%d %H:%M:%S')}",
+                f"Windows：{winver}", f"執行模式：{rd.RUN_MODE}", ""]
+        try:
+            info.append("開著的視窗：")
+            for i, h, name in rd.list_instances().get("windows", []):
+                info.append(f"  {i}. {rd.kind_of(h)} {name}")
+        except Exception as e:
+            info.append(f"  （讀不到：{e}）")
+        for prof in rd.PROFILE_NAMES:
+            cfg = rd._read_json(os.path.join(rd.PROFILES_DIR, prof, "config.json"))
+            td = os.path.join(rd.PROFILES_DIR, prof, "templates")
+            tm = sorted(os.listdir(td)) if os.path.isdir(td) else []
+            info += ["", f"【{prof}】設定：", json.dumps(cfg, ensure_ascii=False, indent=1),
+                     f"【{prof}】模板 {len(tm)} 張：" + "、".join(tm)]
+        try:
+            with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+                z.writestr("00_版本和設定.txt", "\n".join(info))
+                for name, box in (("控制台", self.logbox), ("燃料輪替", self.fuel_log), ("組隊輪替", self.party_log),
+                                  ("萬物石", self.wan_log)):
+                    t = box.get("1.0", "end").strip()
+                    if t:
+                        z.writestr(f"01_畫面上的紀錄_{name}.txt", t + "\n")
+                for n in logs:
+                    z.write(os.path.join(ld, n), f"02_今天的紀錄/{n}")
+                for _, prof, n, fp in shots:
+                    z.write(fp, f"03_失敗截圖/{prof}/{n}")
+        except Exception as e:
+            messagebox.showerror("打包失敗", f"打包失敗：{e}")
+            return
+        size = os.path.getsize(path) / 1024 / 1024
+        self.log(f"已打包問題回報：{path}（{size:.1f} MB；紀錄 {len(logs)} 份、截圖 {len(shots)} 張）\n", "ok")
+        try:
+            subprocess.Popen(["explorer", "/select,", path])
+        except Exception:
+            pass
+        messagebox.showinfo("打包好了",
+                            f"已經打包好：\n{os.path.basename(path)}\n\n"
+                            f"放在：{os.path.dirname(path)}\n"
+                            "（桌面）檔案總管已經打開，而且選好這個檔案了，直接把它拖進 LINE 傳給作者就可以。\n\n"
+                            "裡面有今天的紀錄和失敗截圖（可能有角色名字），只傳給作者就好。")
 
     def start(self, fn, label, target=None):
         if self.worker and self.worker.is_alive():
