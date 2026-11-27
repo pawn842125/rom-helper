@@ -29,7 +29,7 @@ import zipfile
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-__version__ = "2026.11.26"
+__version__ = "2026.11.27"
 
 # 需要另外裝的套件：import 名稱 → pip 安裝名稱
 _PIP_NAMES = {"cv2": "opencv-python", "pyautogui": "pyautogui", "PIL": "pillow",
@@ -290,14 +290,15 @@ CALIB_GROUPS = [
          ("tmpl", "wan_list_up.png", "點升級過的手套後，上架視窗標題裡的「套I」兩個字（只框「套」和後面的 I；這是防止賣錯的保險，要 0.9 分以上）", (34, 26), "btn", "feat"),
          ("tmpl", "wan_list_btn.png", "上架視窗的黃色「上架」", (90, 36), "btn", "feat"),
          ("tmpl", "wan_remove.png", "按上架後跳出的綠色「移除」", (140, 36), "btn", "feat"),
+         ("tmpl", "popup_close.png", "突然跳出的邀請視窗（協助邀請等）右上角的 ✕（連一點右上圓角一起框；選用，已附一張。程式只按 ✕，不會按確認）", (26, 24), "btn", False),
          ("tmpl", "wan_notice_go.png", "按上架後有時先跳「注意：價格會浮動」視窗的綠色「繼續上架」（選用；沒抓的話遇到這個視窗會停下來）", (150, 36), "btn", False),
          ("tmpl", "wan_notice_check.png", "同一個「注意」視窗的「☐ 不再提示」（勾選框加後面的字一起框；選用）", (90, 24), "btn", False),
          ("tmpl", "wan_npc.png", "主畫面卡普拉頭上的「倉庫/儲存/傳送」對話框（先把鏡頭調到字看得清楚、點左下角鎖頭鎖定再抓；換距離可以再抓一張，會一起用）", (120, 30), "btn", "feat"),
          ("tmpl", "wan_storage_btn.png", "點對話框後的「倉庫服務」", (140, 34), "btn", "feat"),
          ("tmpl", "wan_storage_title.png", "倉庫畫面左上角的「倉庫」字樣", (60, 40), "btn", "feat"),
          ("point", "wan_shared_tab", "倉庫畫面最左邊直排的「通用倉庫」分頁（煤炭鋼鐵要存在這裡）", "feat"),
-         ("tmpl", "wan_coal.png", "倉庫畫面右邊包包裡的煤炭（只框圖示中間，不要框到數量和 New）", (36, 28), "btn", "feat"),
-         ("tmpl", "wan_steel.png", "倉庫畫面右邊包包裡的鋼鐵（只框圖示中間，不要框到數量和 New）", (36, 28), "btn", "feat"),
+         ("tmpl", "wan_coal.png", "倉庫畫面右邊包包裡的煤炭（剛拿回來左上角有紅色 New：框圖示中間偏下、避開左上角 New 和右下角數量；在跑的時候抓）", (36, 28), "btn", "feat"),
+         ("tmpl", "wan_steel.png", "倉庫畫面右邊包包裡的鋼鐵（剛拿回來左上角有紅色 New：框圖示中間偏下、避開左上角 New 和右下角數量；在跑的時候抓）", (36, 28), "btn", "feat"),
      ]},
     {"title": "組隊輪替",
      "how": "各項目說明有寫在哪個畫面。好友 ❤ 最愛裡只放隊長",
@@ -1242,16 +1243,20 @@ class App:
                              "按開始後程式一個一個開：換登入資料 → 開遊戲 → 按「開始遊戲」→ 進本尊，"
                              "完全進到遊戲才換下一個。跑的時候不要碰滑鼠鍵盤，按 F12 停止。",
                   foreground="#666", justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        # 群組（使用者要求：常用的幾個帳號存成一組，按一下就勾好，2026.11.26f）
+        grp_bar = ttk.Frame(body)
+        grp_bar.grid(row=1, column=0, columnspan=4, sticky="w", pady=(0, 8))
         for c, t in enumerate(("開", "帳號", "開在哪個資料夾", "現在")):
-            ttk.Label(body, text=t, font=("Microsoft JhengHei", 9, "bold")).grid(row=1, column=c, sticky="w", padx=6)
+            ttk.Label(body, text=t, font=("Microsoft JhengHei", 9, "bold")).grid(row=2, column=c, sticky="w", padx=6)
         rows = []
-        for i, n in enumerate(names, 2):
+        for i, n in enumerate(names, 3):
             v = tk.BooleanVar(value=n in last)
             ttk.Checkbutton(body, variable=v).grid(row=i, column=0, padx=6)
             ttk.Label(body, text=n).grid(row=i, column=1, sticky="w", padx=6, pady=2)
             f = tk.StringVar(value=mapping.get(n, "") if mapping.get(n, "") in folders else "")
-            ttk.Combobox(body, textvariable=f, values=fnames, state="readonly", width=10).grid(
-                row=i, column=2, sticky="w", padx=6)
+            # 寬度跟著最長的資料夾名字（使用者：「ROM Classic1」被切成「ROM Classi」看不出是幾，2026.11.26e）
+            ttk.Combobox(body, textvariable=f, values=fnames, state="readonly",
+                         width=max(12, max(len(x) for x in fnames) + 3)).grid(row=i, column=2, sticky="w", padx=6)
             st = ttk.Label(body, text="", foreground="#666")
             st.grid(row=i, column=3, sticky="w", padx=6)
 
@@ -1262,6 +1267,76 @@ class App:
             f.trace_add("write", upd)
             upd()
             rows.append((n, v, f))
+
+        def groups():
+            return dict(load_shared().get("account_groups") or {})
+
+        def apply_group(g):
+            members = set(groups().get(g, []))
+            for n, v, f in rows:
+                v.set(n in members)
+            gone = [m for m in members if m not in names]
+            if gone:
+                messagebox.showinfo("群組裡有帳號不見了", f"「{g}」裡的這幾個帳號，帳號切換裡已經沒有了：\n" + "、".join(gone), parent=win)
+
+        def save_group():
+            from tkinter import simpledialog
+            picked = [n for n, v, f in rows if v.get()]
+            if not picked:
+                messagebox.showinfo("沒有勾", "先勾好要放進群組的帳號，再按這個。", parent=win)
+                return
+            name = simpledialog.askstring("存成群組", "群組名字（例如：第一組）：\n\n會存這幾個：" + "、".join(picked), parent=win)
+            name = (name or "").strip()
+            if not name:
+                return
+            gs = groups()
+            if name in gs and not messagebox.askyesno("已經有這個群組", f"「{name}」已經有了，要換成這次勾的嗎？", parent=win):
+                return
+            gs[name] = picked
+            sh = load_shared()
+            sh["account_groups"] = gs
+            save_shared(sh)
+            draw_groups()
+
+        def delete_group():
+            gs = groups()
+            if not gs:
+                messagebox.showinfo("沒有群組", "還沒有存任何群組。", parent=win)
+                return
+            d = tk.Toplevel(win)
+            d.title("刪除群組")
+            d.transient(win)
+            fr = ttk.Frame(d, padding=12)
+            fr.pack(fill="both", expand=True)
+            ttk.Label(fr, text="按要刪除的群組：").pack(anchor="w", pady=(0, 6))
+
+            def kill(g):
+                if messagebox.askyesno("刪除群組", f"確定刪除「{g}」？（帳號本身不會被刪）", parent=d):
+                    sh = load_shared()
+                    gs2 = dict(sh.get("account_groups") or {})
+                    gs2.pop(g, None)
+                    sh["account_groups"] = gs2
+                    save_shared(sh)
+                    d.destroy()
+                    draw_groups()
+            for g, mem in gs.items():
+                ttk.Button(fr, text=f"{g}（{len(mem)} 個）", command=lambda g=g: kill(g)).pack(fill="x", pady=2)
+            ttk.Button(fr, text="取消", command=d.destroy).pack(anchor="e", pady=(8, 0))
+
+        def draw_groups():
+            for w in grp_bar.winfo_children():
+                w.destroy()
+            ttk.Label(grp_bar, text="群組：").pack(side="left")
+            gs = groups()
+            if not gs:
+                ttk.Label(grp_bar, text="（還沒有，先勾好再按右邊「把目前勾的存成群組…」）", foreground="#666").pack(side="left")
+            for g, mem in gs.items():
+                b = ttk.Button(grp_bar, text=g, command=lambda g=g: apply_group(g))
+                b.pack(side="left", padx=2)
+                Tooltip(b, "只勾這幾個：" + "、".join(mem))
+            ttk.Button(grp_bar, text="把目前勾的存成群組…", command=save_group).pack(side="left", padx=(12, 2))
+            ttk.Button(grp_bar, text="刪除群組…", command=delete_group).pack(side="left", padx=2)
+        draw_groups()
 
         def go():
             pick = [(n, f.get()) for n, v, f in rows if v.get()]
@@ -1305,7 +1380,7 @@ class App:
             self.start(lambda: rp.open_accounts(plan, cols), "開帳號中，請勿操作滑鼠鍵盤")
 
         bar = ttk.Frame(body)
-        bar.grid(row=len(names) + 2, column=0, columnspan=4, sticky="e", pady=(12, 0))
+        bar.grid(row=len(names) + 3, column=0, columnspan=4, sticky="e", pady=(12, 0))
         ttk.Button(bar, text="開始", command=go).pack(side="left", padx=4)
         ttk.Button(bar, text="取消", command=win.destroy).pack(side="left", padx=4)
         win.update_idletasks()
@@ -3162,6 +3237,8 @@ class App:
             sys.stdout = QueueWriter(self.q)
             try:
                 fn()
+            except rd.Aborted:
+                print("\n已停止（按了停止／F12）。")      # 以前寫成空白的「發生錯誤：」（使用者看不懂）
             except Exception as e:
                 print(f"\n發生錯誤：{e}")
             finally:
