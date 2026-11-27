@@ -45,7 +45,7 @@ from rom_daily import (back_to_main, click_at, click_box, find_one, grab, has,
 # 設定（config.json 有寫就蓋掉）
 # ---------------------------------------------------------------------------
 
-__version__ = "2026.11.26"
+__version__ = "2026.11.27"
 
 PARTY_KEY = "t"                  # 隊伍面板
 FRIEND_KEY = "o"                 # 好友面板
@@ -632,10 +632,29 @@ def _wan_point(key):
     return tuple(v) if v else None
 
 
+def _dismiss_popups():
+    """關掉突然跳出來的邀請視窗（協助邀請之類），只按右上角 ✕，絕對不按「確認」（會傳送走）。
+    使用者實測：協助邀請蓋住交易所清單，找不到防禦手套就停了。圖（popup_close.png，含一點右上圓角）是從他的截圖裁的：
+    那張 1.00、他其他 40 張遊戲截圖最多 0.69，不會誤認（2026.11.26g）。回傳有沒有關掉東西。"""
+    if not has("popup_close.png"):
+        return False
+    closed = False
+    for _ in range(3):
+        b = find_one(grab(), "popup_close.png")
+        if not b:
+            break
+        rd.step(f"畫面突然跳出邀請視窗，按右上角 ✕ 關掉（{b[4]:.2f} 分）")
+        click_box(b, wait=1.0)
+        closed = True
+    return closed
+
+
 def _wan_need(tmpl, timeout, what, seen=None):
     """等某張圖出現：看到就寫「seen（幾分）」；沒出現就停，寫「最像幾分」＋存截圖。
     分數很低＝畫面根本沒出現；0.6～0.8＝畫面有但圖比不到，要重抓那張（使用者要每一步都寫清楚好 debug）。"""
     box = wait_for(tmpl, timeout=timeout)
+    if not box and _dismiss_popups():                # 被突然跳出的視窗擋住：關掉再找一次
+        box = wait_for(tmpl, timeout=max(2.0, timeout))
     if not box:
         near = find_one(grab(), tmpl, threshold=0.3)
         sc = near[4] if near else 0.0
@@ -959,19 +978,60 @@ def _wan_remove():
     back_to_main()
 
 
-def _wan_stable(tmpl, timeout, what):
+def _find_scaled(screen, tmpl, lo=0.75, hi=1.4):
+    """用好幾種大小比（卡普拉頭上的對話框會隨角色站遠站近、鏡頭距離變大變小）。
+    使用者實測：原大小只有 0.69 分；用 0.9～1.15 倍都到 0.86～0.95；遮掉真的對話框後別處最多 0.65 分，不會認錯（2026.11.26b）。
+    先在縮小一半的畫面粗找（每 0.1 倍一種），再回原大小在找到的附近細找（±0.05 倍），比一張一張全畫面比快很多。
+    回傳 (最好的框或 None, 最好分數)；框的格式跟 find_one 一樣。"""
+    import cv2
+    import numpy as np
+    small = cv2.resize(screen, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+    coarse = []                                       # (分數, 圖, 倍數, x, y)
+    for v in rd.template_variants(tmpl):
+        try:
+            t = rd.load_template(v)
+        except Exception:
+            continue
+        for k in np.arange(lo, hi + 1e-6, 0.1):
+            tt = cv2.resize(t, None, fx=k * 0.5, fy=k * 0.5, interpolation=cv2.INTER_AREA)
+            if tt.shape[0] < 6 or tt.shape[1] < 6 or tt.shape[0] > small.shape[0] or tt.shape[1] > small.shape[1]:
+                continue
+            r = cv2.matchTemplate(small, tt, cv2.TM_CCOEFF_NORMED)
+            _, mx, _, loc = cv2.minMaxLoc(r)
+            coarse.append((float(mx), v, float(k), loc[0] * 2, loc[1] * 2))
+    coarse.sort(reverse=True)
+    best, best_box = 0.0, None
+    H, W = screen.shape[:2]
+    for _, v, k0, x0, y0 in coarse[:3]:               # 最像的前三個，回原大小在附近細找
+        t = rd.load_template(v)
+        for k in np.arange(k0 - 0.05, k0 + 0.051, 0.025):
+            tt = cv2.resize(t, None, fx=k, fy=k, interpolation=cv2.INTER_AREA if k < 1 else cv2.INTER_LINEAR)
+            th, tw = tt.shape[:2]
+            ax, ay = max(0, x0 - 16), max(0, y0 - 16)
+            bx, by = min(W, x0 + tw + 16), min(H, y0 + th + 16)
+            if bx - ax < tw or by - ay < th:
+                continue
+            r = cv2.matchTemplate(screen[ay:by, ax:bx], tt, cv2.TM_CCOEFF_NORMED)
+            _, mx, _, loc = cv2.minMaxLoc(r)
+            if mx > best:
+                best, best_box = float(mx), (ax + loc[0], ay + loc[1], tw, th, float(mx), v)
+    return (best_box if best >= rd.MATCH_THRESHOLD else None), best
+
+
+def _wan_stable(tmpl, timeout, what, scaled=False):
     """找到按鈕後，連看兩次位置都一樣（差 3 點以內）才回傳；還在動就等。
     使用者實測：點「倉庫服務」時角色位移、點到地板——點卡普拉後角色走過去，鏡頭跟著動，選單也在動，
     找到時的位置跟滑鼠到的時候不一樣（2026.11.25p）。"""
     deadline = time.time() + timeout * max(0.5, rd.SLOW)
     told = False
+    find = (lambda sc: _find_scaled(sc, tmpl)[0]) if scaled else (lambda sc: find_one(sc, tmpl))
     while time.time() < deadline:
-        b1 = find_one(grab(), tmpl)
+        b1 = find(grab())
         if not b1:
             time.sleep(0.3)
             continue
         time.sleep(0.35)
-        b2 = find_one(grab(), tmpl)
+        b2 = find(grab())
         if b2 and abs(b2[0] - b1[0]) <= 3 and abs(b2[1] - b1[1]) <= 3:
             return b2
         if not told:
@@ -980,24 +1040,65 @@ def _wan_stable(tmpl, timeout, what):
     return None
 
 
+def _wan_debug_click(box, name):
+    """點之前存一張圖，在要點的位置畫紅圈（shots\\debug_名字.png，每次覆蓋）。使用者說點到地板但很難描述 → 直接看圖（2026.11.26c）。"""
+    try:
+        import cv2
+        x, y, w, h = box[0], box[1], box[2], box[3]
+        off = rd.CLICK_OFFSET.get(box[5])
+        cx, cy = (x + off[0], y + off[1]) if off else (x + w // 2, y + h // 2)
+        img = grab().copy()
+        cv2.rectangle(img, (x, y), (x + w, y + h), (0, 200, 255), 1)
+        cv2.circle(img, (cx, cy), 9, (0, 0, 255), 2)
+        cv2.circle(img, (cx, cy), 2, (0, 0, 255), -1)
+        os.makedirs(rd.SHOT_DIR, exist_ok=True)
+        path = os.path.join(rd.SHOT_DIR, f"debug_{name}.png")
+        rd.imwrite(path, img)
+        rd.step(f"（要點在 ({cx}, {cy})，存了標記圖：{path}）")
+    except Exception as e:
+        rd.step(f"（存標記圖失敗：{e}）")
+
+
 def _wan_deposit():
     """點卡普拉頭上的對話框 → 倉庫服務 → 右邊包包的煤炭、鋼鐵各點兩下存進倉庫。"""
     if not on_main():
         back_to_main()
     # 卡普拉偶爾會講話，對話泡泡會蓋住「倉庫/儲存/傳送」幾秒（使用者截圖）→ 最多等 10 秒（2026.11.25f）
-    n = wait_for("wan_npc.png", timeout=2.0)
+    # 對話框會隨角色站遠站近變大變小 → 用好幾種大小比，再確認位置停住了才點（2026.11.26b）
+    n = _wan_stable("wan_npc.png", 2.0, "卡普拉頭上的對話框", scaled=True)
     if not n:
+        _dismiss_popups()
         rd.step("還沒看到卡普拉頭上的對話框（可能被 NPC 講話的泡泡擋住），最多再等 8 秒")
-        n = _wan_need("wan_npc.png", 8.0, "等了 10 秒都找不到卡普拉頭上的「倉庫/儲存/傳送」對話框"
-                                           "（角色要站在卡普拉旁邊；鏡頭要跟抓圖時一樣，建議鎖定鏡頭）")
-    n = _wan_stable("wan_npc.png", 4.0, "卡普拉頭上的對話框") or n
+        n = _wan_stable("wan_npc.png", 8.0, "卡普拉頭上的對話框", scaled=True)
+    if not n:
+        _, sc = _find_scaled(grab(), "wan_npc.png")
+        raise WanStop("等了 10 秒都找不到卡普拉頭上的「倉庫/儲存/傳送」對話框（角色要站在卡普拉旁邊）"
+                      f"（用好幾種大小比，最像 {sc:.2f} 分，要 {rd.MATCH_THRESHOLD:g}）（{dump_fail('wan_npc')}）")
     rd.step(f"看到卡普拉頭上的對話框，點它（{n[4]:.2f} 分）")
     click_box(n, wait=1.5)
-    _wan_need("wan_storage_btn.png", 4.0, "沒看到「倉庫服務」")
+    # 點了對話框後角色要先走到卡普拉旁邊，選單才會跳出來 → 等 8 秒（以前 4 秒，使用者截圖選單還沒出來就停了）
+    _wan_need("wan_storage_btn.png", 8.0, "點了卡普拉對話框，等了 8 秒沒看到「倉庫服務」（角色離卡普拉太遠？）")
     sb = _wan_stable("wan_storage_btn.png", 6.0, "「倉庫服務」")
     if not sb:
         raise WanStop(f"「倉庫服務」一直在移動、停不下來，沒有點（避免點到地板讓角色走掉）（{dump_fail('wan_storage_moving')}）")
-    rd.step(f"「倉庫服務」停好了，點它（{sb[4]:.2f} 分）")
+    # 選單跳出來有淡入動畫，淡入中按下去會「穿過去」點到後面的地板（使用者：還是點到右邊地板）。
+    # 停好後再等 1 秒，而且要 0.9 分以上（淡入中比較透明、分數比較低）才點；4 秒都不到 0.9 就用 0.8 以上的照點（2026.11.26c）
+    rd.step("「倉庫服務」停好了，再等 1 秒讓選單動畫跑完")
+    rd.nap(1.0)
+    sure = None
+    deadline = time.time() + 4.0 * max(0.5, rd.SLOW)
+    while time.time() < deadline:
+        sure = find_one(grab(), "wan_storage_btn.png", threshold=0.9)
+        if sure:
+            break
+        time.sleep(0.3)
+    if sure:
+        sb = sure
+    else:
+        sb = find_one(grab(), "wan_storage_btn.png") or sb
+        rd.step(f"「倉庫服務」一直沒到 0.9 分（{sb[4]:.2f}），照樣點")
+    _wan_debug_click(sb, "倉庫服務")
+    rd.step(f"點「倉庫服務」（{sb[4]:.2f} 分）")
     click_box(sb, wait=rd.T_PANEL_MAX)
     _wan_need("wan_storage_title.png", 6.0, "倉庫沒打開", "倉庫打開了")
     # 要存進「通用倉庫」（使用者提醒）；已經在那一頁的話再點一次也沒關係
@@ -1008,8 +1109,21 @@ def _wan_deposit():
     for tmpl, name in (("wan_coal.png", "煤炭"), ("wan_steel.png", "鋼鐵")):
         b = _wan_right(tmpl)
         if not b:
-            rd.step(f"包包裡沒看到{name}（可能已經存過了），跳過")
-            continue
+            # 每輪「移除升級」一定會拿回煤炭和鋼鐵，所以這裡一定有；找不到＝圖比不到。
+            # 以前寫「可能已經存過了，跳過」→ 使用者跑了 20 輪鋼鐵都沒存（下一輪升級改吃包包裡的鋼鐵，沒用到萬物石），2026.11.26d
+            sc = grab()
+            w = sc.shape[1]
+            near = None
+            for c in rd.find_all(sc, tmpl, threshold=0.3):
+                if c[0] + c[2] // 2 > w * 0.5:
+                    near = c
+                    break
+            score = near[4] if near else 0.0
+            shot = dump_fail(f"wan_{tmpl[4:-4]}")
+            back_to_main()
+            raise WanStop(f"倉庫畫面右邊包包裡找不到{name}（最像 {score:.2f} 分，要 {rd.MATCH_THRESHOLD:g}）。"
+                          f"剛拿回來的{name}左上角會有紅色「New」，抓圖時請框圖示的中間偏下，避開左上角和右下角的數字，"
+                          f"在跑的時候（有 New 的狀態）重抓「倉庫畫面右邊包包裡的{name}」（{shot}）")
         for k in range(1, 4):
             rd.step(f"{name}點兩下存進倉庫（{b[4]:.2f} 分）" + (f"（第 {k} 次）" if k > 1 else ""))
             _wan_dclick(b)
@@ -1057,6 +1171,9 @@ def wan_run(hwnd, rounds, ex_key="1"):
                     except WanStop as e:
                         print(f"\n✗ 第 {n} 輪在「{what}」停下來：{e}")
                         print(f"完成 {done} 輪，共 {(time.time() - t0) / 60:.0f} 分鐘。")
+                        return
+                    except rd.Aborted:
+                        print(f"\n已停止（按了停止／F12），第 {n} 輪做到「{what}」。完成 {done} 輪，共 {(time.time() - t0) / 60:.0f} 分鐘。")
                         return
                 done += 1
                 print(f"  {time.strftime('%H:%M:%S')} → 第 {n} 輪完成", flush=True)
