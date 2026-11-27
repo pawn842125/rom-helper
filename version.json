@@ -1,19 +1,19 @@
 {
- "version": "2026.11.26",
- "notes": "【2026.11.26 更新內容】\n\n■ 新功能\n・控制台「開帳號…」：勾要開的帳號，程式自動換帳號、開遊戲、按進遊戲（每個帳號固定開在一個資料夾），開完自動排列視窗\n・「打包問題回報」：有問題時按一下，桌面會出現一個 zip（今天的紀錄＋失敗截圖），用 LINE 傳給作者\n・新分頁「萬物石」：防禦手套用萬物之石升級 → 移除升級拿回煤炭、鋼鐵 → 存通用倉庫，重複跑\n  - 可以填萬物石數量自動算輪數，或直接指定輪數\n  - 要先到「校正 → 萬物石（防禦手套）」抓圖；包包只留 1 雙手套、角色站在卡普拉旁邊、鏡頭鎖定\n  - 有多道保險：確認是升級過的手套才會按上架，任何一步不對就整個停下來\n\n■ 修正\n・一鍵上架：按完「是」後固定等 10 秒再按下一次（以前太快）\n・掃蕩券：禮物視窗比較慢出現時，不會再誤判「沒看到禮物視窗」\n・每次跑完會自動把紀錄存起來（打包回報時用）",
- "published": "2026-11-26 16:07",
+ "version": "2026.11.27",
+ "notes": "【2026.11.27 更新內容】\n\n■ 新功能\n・開帳號：可以把常用的帳號存成「群組」（例如 001～006 一組），按群組就自動勾好，直接按開始\n・萬物石：遇到突然跳出的「協助邀請」等視窗，會自動按右上角 ✕ 關掉再繼續（只按 ✕，不會按確認）\n\n■ 修正\n・萬物石：卡普拉頭上的對話框會隨角色站遠站近變大變小，現在會自動用不同大小去找\n・萬物石：點「倉庫服務」有時會點到地板讓角色走掉 → 改成等選單完全出現、停好了才點\n・萬物石：煤炭或鋼鐵存不進倉庫時會停下來提醒，不會再默默跳過\n・按停止／F12 時會寫清楚「已停止，完成幾輪」，不會再出現空白的「發生錯誤：」\n・開帳號視窗的資料夾名稱太長被切掉（看不出是 ROM Classic1 還是 10）→ 已修正",
+ "published": "2026-11-27 18:02",
  "files": {
   "rom_daily.py": {
-   "sha256": "9a2b1aac19e645833dfeaed0594af7b790148961f06481a5992454336c329bd3",
+   "sha256": "4898bab087dc25a4e72da4c0308daf3ec8e4a13592792b7c5379538f430eec83",
    "size": 170473
   },
   "rom_party.py": {
-   "sha256": "62f82dbcab19e89433cd1956e91f13ef3d800315370384e53f6ca597a6c4efc2",
-   "size": 87431
+   "sha256": "ae23f06e7379ce6357a09e3cf765642dc5e0f74dca434cfad18fab2189148d74",
+   "size": 94322
   },
   "gui.pyw": {
-   "sha256": "81fc652fc1a569170ee020c08549cd704610a19490a588997df2494fc8334428",
-   "size": 173767
+   "sha256": "69fdc6bdf5254691763cdabab27433a7d31ba96296b7fffd9bab8a148a0da8fb",
+   "size": 178106
   },
   "account_switch.pyw": {
    "sha256": "a0a6dd424fceb3ec1a9d9d11eadf403fa79e94bd0fec71a65b087c81fcd0e959",
@@ -85,6 +85,7 @@
    "pet_title.png": "e2b1f8d3671ea218ae6c943be731dbbafa746efd0c5b46942d6e453386f45ea5",
    "pet_title_2.png": "a285be35d8469e70e0434f83e0e09159b68333927c686b3c3d14425dabf5d775",
    "playtime_label.png": "ec079ff45edff6dbc66caa057dffa20ba62682e428fed2a53d39fa14a9126c7b",
+   "popup_close.png": "d94b7c876873da9cb4c9031c498a1ca6daa6bb50d03f03230258fb11df9cf099",
    "quick_complete.png": "850de8eba092ad3ca04af486b527fc3b7872d4e21d7a8025bb7db28a07c8f8c8",
    "quick_confirm.png": "8d28a6b7fadbde4c1c90dd0a13de8cafc0389dc36ab58ef741c831d205fbc80a",
    "redeem_btn.png": "e487d529fa7bcb0469893c5e86b05d1d7ff9e3400ced65b767aabb433fe997e8",
@@ -112,13 +113,10 @@
    "wan_list_up.png": "0c169141d1cd3c748afd5cf21b89249a88ab541115d178ca70b7a2f20937bf1e",
    "wan_notice_check.png": "7f17997ad502bb3cb7d1e2a061a0a392a968ab402e188fce0c0b823832e09650",
    "wan_notice_go.png": "b2b533661794ffd2b6062707da3293cc64f914c1f000ee533b2c9d9a74733bf4",
-   "wan_npc.png": "60e8dc0ec17637087df796be90116917f0581ca99031ce0c5d6d3d6c4dfe5071",
-   "wan_npc_2.png": "5e86d12be7e588b352184a75378a54af42d9b25af1227eb01e2aa63aec177660",
-   "wan_npc_3.png": "c1666c73960a24ae7b41d62b711eec434c18d6ae16bac8d6e4d57d620eac1b0c",
-   "wan_npc_4.png": "76c7502ffe70b648abbfe3c1a7d4cca504c834ada2f7b814b2eb14258430d25d",
+   "wan_npc.png": "d0bed73b5a5a773bbee62d1ced0addc675ac0fca2c3d2016e313f370ab746b67",
    "wan_remove.png": "667b888a15c0664f23c04c146c6fbacad769090c2c67072f9d80b817b58a8600",
-   "wan_steel.png": "4c857607b80983b015e8d9b3e463834e8a40fbd5b3b95ac73a2cd65856ad4042",
-   "wan_steel_2.png": "b425ad0af5e140a95f7ac78d1b6e3a60c8c038bea329b7d67d6ffd4ddc28405b",
+   "wan_steel.png": "fe249b157aded9808ab00aaac0e2cb6ffb6b8c19199db66998b21dcb42fc798d",
+   "wan_steel_2.png": "895e9872f146af75dd87ad1764ebf16777ba497550597d313a266149e792d3dd",
    "wan_stone_on.png": "8b5491ec1d7d6bf46544f13152b38f3fd0445f81ce871a5f0a1ef4ee4d784290",
    "wan_storage_btn.png": "1be857af8d690ff1741decce1223b3746d8952be42ce97f307f0f8f33cae80f4",
    "wan_storage_title.png": "470066a479d55c5968d6909dfd5aebde83bd1b9d47d01e05426e0f225cdc1088",
@@ -468,5 +466,5 @@
    ]
   }
  },
- "commit": "1b270d921df0d01593e243b3f9fb2708c1debced"
+ "commit": "9073d5039f86cc572054db7c1ec4a684334e839d"
 }
